@@ -1,0 +1,967 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>校務行政資訊系統二 - 國立金門大學</title>
+<style>
+/* =====================================================================
+   國立金門大學 校務行政資訊系統二
+   風格：深綠學術風（銳利直角、細硬線條、金色分隔線）
+   ===================================================================== */
+:root{
+  /* 深綠主色 */
+  --grn-950:#07291a; --grn-900:#0b3b25; --grn-800:#0f4c2e; --grn-700:#145c38;
+  --grn-600:#1b7044; --grn-500:#2b8a57;
+  --grn-100:#d7e8dd; --grn-50:#eef5f0;
+  /* 金色學術點綴 */
+  --gold:#c2a24a; --gold-dark:#8d7326; --gold-50:#faf5e6;
+  /* 中性 */
+  --paper:#f2f5f2; --panel:#ffffff;
+  --ink-900:#12211a; --ink-700:#2e3c35; --ink-600:#4a5a52; --ink-500:#6b7a72;
+  --line:#c3cfc8; --line-soft:#dde5e0;
+  /* 狀態 */
+  --amber-bg:#fdf6e3; --amber-line:#e3cb86; --amber-tx:#8a6a12;
+  --rose-bg:#fbeceb; --rose-line:#e0b3af; --rose-tx:#9b2c22;
+  --sidebar-w:288px; --topbar-h:62px;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;height:100%;}
+body{
+  font-family:"Microsoft JhengHei","PingFang TC","Heiti TC","Noto Sans TC",system-ui,-apple-system,sans-serif;
+  background:var(--paper);
+  color:var(--ink-700);
+  font-size:15px;line-height:1.62;
+  -webkit-text-size-adjust:100%;
+}
+a{color:var(--grn-700);}
+
+/* ---------------- Topbar ---------------- */
+.topbar{
+  position:fixed;top:0;left:0;right:0;height:var(--topbar-h);z-index:50;
+  background:linear-gradient(180deg,var(--grn-900) 0%,var(--grn-950) 100%);
+  border-bottom:3px solid var(--gold);
+  color:#fff;display:flex;align-items:center;gap:12px;padding:0 16px;
+}
+.hamburger{
+  display:none;background:rgba(255,255,255,.08);
+  border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:0;
+  width:36px;height:36px;align-items:center;justify-content:center;
+  cursor:pointer;flex:0 0 auto;
+}
+.hamburger span{display:block;width:17px;height:2px;background:#fff;position:relative;}
+.hamburger span::before,.hamburger span::after{content:"";position:absolute;left:0;width:17px;height:2px;background:#fff;}
+.hamburger span::before{top:-5px;} .hamburger span::after{top:5px;}
+.brand{display:flex;align-items:center;gap:11px;min-width:0;}
+.brand .crest{
+  width:34px;height:34px;flex:0 0 auto;border-radius:0;
+  background:var(--gold);color:var(--grn-950);
+  display:flex;align-items:center;justify-content:center;
+  font-weight:700;font-size:13px;letter-spacing:.5px;
+  font-family:"Times New Roman",serif;
+}
+.brand .names{min-width:0;line-height:1.25;}
+.brand .zh{font-size:16px;font-weight:700;white-space:nowrap;letter-spacing:1px;}
+.brand .en{font-size:10px;color:var(--gold);white-space:nowrap;letter-spacing:.6px;text-transform:uppercase;}
+.topbar .spacer{flex:1 1 auto;}
+.userbox{display:flex;align-items:center;gap:10px;font-size:13px;}
+.userbox .who{text-align:right;line-height:1.3;}
+.userbox .who b{display:block;font-size:14px;}
+.userbox .who small{color:var(--grn-100);font-size:11px;}
+.userbox .avatar{
+  width:32px;height:32px;border-radius:0;
+  background:var(--grn-600);border:1px solid var(--gold);
+  display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;
+}
+.logout{
+  background:transparent;border:1px solid rgba(255,255,255,.45);
+  color:#fff;border-radius:0;padding:5px 12px;font-size:12.5px;cursor:pointer;
+  font-family:inherit;white-space:nowrap;letter-spacing:1px;
+}
+.logout:hover{background:var(--gold);border-color:var(--gold);color:var(--grn-950);}
+
+/* ---------------- Layout ---------------- */
+.shell{display:flex;padding-top:var(--topbar-h);min-height:100vh;}
+.sidebar{
+  width:var(--sidebar-w);flex:0 0 var(--sidebar-w);
+  background:var(--panel);border-right:1px solid var(--line);
+  position:fixed;top:var(--topbar-h);bottom:0;left:0;
+  overflow-y:auto;z-index:40;transition:transform .2s ease;
+}
+.main{flex:1 1 auto;margin-left:var(--sidebar-w);padding:22px clamp(14px,3vw,30px) 48px;min-width:0;}
+.overlay{display:none;position:fixed;inset:var(--topbar-h) 0 0 0;background:rgba(7,41,26,.55);z-index:39;}
+.overlay.show{display:block;}
+
+/* ---------------- Sidebar ---------------- */
+.sidebar .side-head{
+  padding:12px 16px;border-bottom:2px solid var(--grn-900);
+  background:var(--grn-50);
+}
+.sidebar .side-head h2{margin:0;font-size:12.5px;letter-spacing:4px;color:var(--grn-800);font-weight:700;}
+.menu{padding:6px 6px 30px;}
+.menu-group{margin-bottom:2px;}
+.m-btn{
+  width:100%;display:flex;align-items:center;gap:9px;
+  background:none;border:0;border-left:3px solid transparent;border-radius:0;
+  padding:10px 11px;cursor:pointer;
+  font-family:inherit;font-size:14.5px;font-weight:700;color:var(--ink-700);
+  text-align:left;letter-spacing:1px;
+}
+.m-btn:hover{background:var(--grn-50);border-left-color:var(--grn-500);}
+.m-btn .ic{
+  width:24px;height:24px;flex:0 0 auto;border-radius:0;
+  background:var(--grn-800);color:#fff;
+  display:flex;align-items:center;justify-content:center;font-size:13px;
+}
+.m-btn .caret{margin-left:auto;color:var(--ink-500);font-size:10px;transition:transform .15s ease;}
+.m-btn[aria-expanded="true"] .caret{transform:rotate(90deg);}
+.m-btn[aria-expanded="true"]{color:var(--grn-900);background:var(--grn-50);border-left-color:var(--grn-800);}
+
+.sub{display:none;padding:2px 0 6px 10px;margin-left:14px;border-left:1px solid var(--line-soft);}
+.sub.open{display:block;}
+
+.s-btn{
+  width:100%;display:flex;align-items:center;gap:7px;
+  background:none;border:0;border-radius:0;padding:7px 9px;cursor:pointer;
+  font-family:inherit;font-size:13.5px;font-weight:700;color:var(--grn-800);
+  text-align:left;letter-spacing:.5px;
+}
+.s-btn:hover{background:var(--grn-50);}
+.s-btn .caret{margin-left:auto;color:var(--ink-500);font-size:9px;transition:transform .15s ease;}
+.s-btn[aria-expanded="true"] .caret{transform:rotate(90deg);}
+
+.leaf{
+  width:100%;display:block;text-align:left;
+  background:none;border:0;border-radius:0;
+  padding:6.5px 10px 6.5px 19px;cursor:pointer;
+  font-family:inherit;font-size:13.5px;color:var(--ink-600);position:relative;
+}
+.leaf::before{
+  content:"";position:absolute;left:8px;top:50%;margin-top:-2px;
+  width:4px;height:4px;background:var(--line);
+}
+.leaf:hover{background:var(--grn-50);color:var(--grn-900);}
+.leaf:hover::before{background:var(--grn-600);}
+.leaf.active{background:var(--grn-800);color:#fff;font-weight:700;}
+.leaf.active::before{background:var(--gold);}
+
+/* ---------------- Page head ---------------- */
+.page-head{margin:0 0 18px;border-bottom:2px solid var(--grn-900);padding-bottom:9px;}
+.page-head h1{
+  margin:0 0 4px;font-size:clamp(20px,3.4vw,26px);font-weight:700;
+  color:var(--grn-950);letter-spacing:3px;
+}
+.page-head .crumb{font-size:12.5px;color:var(--ink-500);letter-spacing:.5px;}
+.page-head .crumb span{color:var(--gold-dark);margin:0 5px;}
+
+/* ---------------- Cards ---------------- */
+.card{
+  background:var(--panel);border:1px solid var(--line);border-radius:0;
+  margin-bottom:18px;overflow:hidden;
+  box-shadow:1px 1px 0 rgba(11,59,37,.07);
+}
+.card-head{
+  padding:11px 16px;background:var(--grn-900);
+  border-bottom:2px solid var(--gold);
+  display:flex;align-items:center;gap:9px;flex-wrap:wrap;
+}
+.card-head h3{
+  margin:0;font-size:16px;font-weight:700;color:#fff;
+  line-height:1.5;flex:1 1 300px;letter-spacing:1px;
+}
+.card-head .tag{background:transparent;color:var(--gold);border:1px solid var(--gold);}
+.card-body{padding:16px 18px;}
+.card-body p{margin:0 0 10px;color:var(--ink-700);}
+.card-body p:last-child{margin-bottom:0;}
+.card-body b{color:var(--grn-900);}
+
+.tag{
+  display:inline-block;font-size:11.5px;font-weight:700;border-radius:0;
+  padding:2px 9px;white-space:nowrap;letter-spacing:1px;
+}
+.tag.blue,.tag.green{background:var(--grn-50);color:var(--grn-800);border:1px solid var(--grn-100);}
+.tag.amber{background:var(--amber-bg);color:var(--amber-tx);border:1px solid var(--amber-line);}
+.tag.rose{background:var(--rose-bg);color:var(--rose-tx);border:1px solid var(--rose-line);}
+.tag.slate{background:#eef1ee;color:var(--ink-600);border:1px solid var(--line);}
+
+.callout{
+  border:1px solid var(--grn-100);border-left:4px solid var(--grn-700);
+  background:var(--grn-50);border-radius:0;
+  padding:11px 14px;font-size:14px;color:var(--ink-700);margin:12px 0;
+}
+.callout.amber{border-color:var(--amber-line);border-left-color:var(--gold-dark);background:var(--amber-bg);}
+.callout.rose{border-color:var(--rose-line);border-left-color:var(--rose-tx);background:var(--rose-bg);}
+.callout b{color:var(--grn-950);}
+.path-chip{
+  display:inline-block;background:#fff;border:1px solid var(--grn-700);
+  border-radius:0;padding:2px 9px;font-size:13px;color:var(--grn-800);font-weight:700;
+}
+
+/* ---------------- Tables ---------------- */
+.table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;border:1px solid var(--grn-900);}
+table.t{width:100%;border-collapse:collapse;font-size:13.5px;min-width:560px;}
+table.t th{
+  background:var(--grn-900);color:#fff;font-weight:700;text-align:center;
+  padding:9px 10px;border:1px solid var(--grn-700);white-space:nowrap;letter-spacing:1px;
+}
+table.t td{
+  border:1px solid var(--line);padding:8px 10px;color:var(--ink-700);
+  text-align:center;vertical-align:middle;
+}
+table.t td.l{text-align:left;}
+table.t tbody tr:nth-child(even){background:#f6f9f7;}
+table.t tbody tr:hover{background:var(--grn-50);}
+table.t tfoot td{background:var(--grn-50);font-weight:700;color:var(--grn-900);border-color:var(--grn-100);}
+
+/* 文件式表頭（襯線＝學術感） */
+.doc-head{
+  text-align:center;padding:18px 10px 10px;
+  border-bottom:3px double var(--grn-800);
+  font-family:"Noto Serif CJK TC","Songti TC","PMingLiU",serif;
+}
+.doc-head .univ{font-size:17px;font-weight:700;color:var(--grn-950);letter-spacing:6px;}
+.doc-head .kind{font-size:20px;font-weight:700;color:var(--grn-900);letter-spacing:7px;margin-top:3px;}
+.doc-head .term{font-size:14.5px;color:var(--ink-600);margin-top:3px;letter-spacing:3px;}
+.doc-meta{
+  display:flex;flex-wrap:wrap;gap:6px 24px;justify-content:space-between;
+  padding:10px 18px;font-size:13px;color:var(--ink-600);
+  border-bottom:1px solid var(--line-soft);
+}
+.doc-meta .rose{color:var(--rose-tx);font-weight:700;}
+.doc-foot{
+  display:flex;flex-wrap:wrap;gap:8px 28px;
+  padding:11px 18px;font-size:13.5px;color:var(--ink-700);
+  background:var(--grn-50);border-top:2px solid var(--grn-800);
+}
+.doc-foot b{color:var(--grn-950);}
+
+/* ---------------- Controls ---------------- */
+.form-row{display:flex;flex-wrap:wrap;align-items:center;gap:10px;}
+.form-row label{font-size:14px;font-weight:700;color:var(--grn-900);letter-spacing:1px;}
+select.ctl,input.ctl{
+  font-family:inherit;font-size:14px;color:var(--ink-900);
+  padding:7px 11px;border:1px solid var(--grn-700);border-radius:0;background:#fff;
+  min-width:170px;
+}
+select.ctl:focus,input.ctl:focus{outline:2px solid var(--gold);outline-offset:0;}
+.btn2{
+  font-family:inherit;font-size:14px;font-weight:700;cursor:pointer;letter-spacing:2px;
+  padding:7px 20px;border-radius:0;border:1px solid var(--grn-950);
+  background:var(--grn-800);color:#fff;white-space:nowrap;
+}
+.btn2:hover{background:var(--grn-950);}
+.btn2.ghost{background:#fff;color:var(--grn-900);border-color:var(--grn-700);}
+.btn2.ghost:hover{background:var(--grn-50);}
+
+/* ---------------- States ---------------- */
+.state{text-align:center;padding:48px 20px;}
+.state .ico{
+  width:62px;height:62px;margin:0 auto 14px;border-radius:0;
+  display:flex;align-items:center;justify-content:center;font-size:27px;
+}
+.state.closed .ico{background:var(--rose-bg);color:var(--rose-tx);border:2px solid var(--rose-line);}
+.state.empty .ico{background:var(--grn-50);color:var(--grn-800);border:2px solid var(--grn-100);}
+.state.build .ico{background:var(--amber-bg);color:var(--amber-tx);border:2px solid var(--amber-line);}
+.state h3{margin:0 0 8px;font-size:19px;color:var(--grn-950);letter-spacing:3px;}
+.state p{margin:0;color:var(--ink-500);font-size:14px;}
+
+.note-small{font-size:12.5px;color:var(--ink-500);margin-top:10px;line-height:1.8;}
+.note-small ol{margin:4px 0 0;padding-left:1.4em;}
+.note-small b{color:var(--grn-900);}
+
+/* ---------------- RWD ---------------- */
+@media (max-width:900px){
+  .hamburger{display:flex;}
+  .sidebar{transform:translateX(-100%);border-right:3px solid var(--gold);}
+  .sidebar.open{transform:translateX(0);}
+  .main{margin-left:0;}
+  .brand{flex:1 1 auto;min-width:0;}
+  .brand .names{overflow:hidden;}
+  .brand .zh{font-size:15px;overflow:hidden;text-overflow:ellipsis;}
+  .brand .en{display:none;}
+  .userbox .who{display:none;}
+}
+@media (max-width:520px){
+  body{font-size:14.5px;}
+  .topbar{gap:9px;padding:0 11px;}
+  .brand .crest{display:none;}
+  .brand .zh{font-size:14px;letter-spacing:0;}
+  .page-head h1{letter-spacing:1.5px;}
+  .card-head,.card-body{padding-left:13px;padding-right:13px;}
+  .doc-meta,.doc-foot{padding-left:13px;padding-right:13px;}
+  .doc-head .univ{letter-spacing:3px;}
+  .doc-head .kind{font-size:17px;letter-spacing:3px;}
+  select.ctl,input.ctl{min-width:0;width:100%;}
+  .form-row{gap:8px;}
+  .form-row > *{flex:1 1 100%;}
+  .btn2{width:100%;}
+}
+@media print{
+  .topbar,.sidebar,.overlay,.no-print{display:none !important;}
+  .main{margin:0;padding:0;}
+  body{background:#fff;}
+  .card{border:1px solid #000;box-shadow:none;}
+  .card-head{background:#fff;border-bottom:2px solid #000;}
+  .card-head h3{color:#000;}
+  table.t th{background:#e8e8e8;color:#000;border-color:#000;}
+}
+</style>
+</head>
+<body>
+
+<!-- ============ Topbar ============ -->
+<div class="topbar">
+  <button class="hamburger" id="hamburger" aria-label="開啟功能選單"><span></span></button>
+  <div class="brand">
+    <div class="crest">NQU</div>
+    <div class="names">
+      <div class="zh">國立金門大學　校務行政資訊系統二</div>
+      <div class="en">National Quemoy University · Academic Information System</div>
+    </div>
+  </div>
+  <div class="spacer"></div>
+  <div class="userbox">
+    <div class="who"><b id="uName">黃信惟</b><small id="uMeta">資訊工程學系三年級　111310514</small></div>
+    <div class="avatar" id="uAvatar">黃</div>
+    <button class="logout" onclick="logout()">登出</button>
+  </div>
+</div>
+
+<div class="shell">
+  <!-- ============ Sidebar ============ -->
+  <aside class="sidebar" id="sidebar">
+    <div class="side-head"><h2>功 能 選 單</h2></div>
+    <nav class="menu" id="menu"><!-- 由 JS 產生 --></nav>
+  </aside>
+  <div class="overlay" id="overlay"></div>
+
+  <!-- ============ Main ============ -->
+  <main class="main" id="main"><!-- 由 JS 產生 --></main>
+</div>
+
+<script>
+/* =====================================================================
+   0. 使用者
+   ===================================================================== */
+var STUDENT = {
+  id:'111310514', name:'黃信惟', idno:'L126****36',
+  dept:'資訊工程學系', classNow:'資訊工程學系三年級',
+  program:'日間部學士班－資訊工程學系'
+};
+(function(){
+  var acc = new URLSearchParams(location.search).get('u') || '';
+  if (acc.toLowerCase() === 'guest'){
+    STUDENT = {id:'guest',name:'來賓',idno:'-',dept:'-',classNow:'來賓帳號',program:'－'};
+  } else if (acc) { STUDENT.id = acc; }
+  document.getElementById('uName').textContent = STUDENT.name;
+  document.getElementById('uMeta').textContent = STUDENT.classNow + '　' + STUDENT.id;
+  document.getElementById('uAvatar').textContent = STUDENT.name.charAt(0);
+})();
+function logout(){ if (confirm('確定要登出系統嗎？')) location.href = 'index.html'; }
+
+/* =====================================================================
+   1. 選單結構
+   ===================================================================== */
+var MENU = [
+  { key:'enroll', icon:'✎', title:'選課作業',
+    leaves:[
+      ['線上加選作業','closed'],['線上退選作業','closed'],['選課結果查詢','closed'],
+      ['停修申請','closed'],['通識選課初選作業','closed'],['人工加選申請','closed'],
+      ['超修學分申請','closed'],['酌減學分申請','closed'],['學分學程資訊','closed']
+    ]
+  },
+  { key:'query', icon:'🔍', title:'查詢',
+    groups:[
+      { title:'教務資訊查詢', leaves:[
+        ['學期成績查詢','termGrade'],['學生期中預警查詢','warning'],['歷年成績查詢','transcript'],
+        ['選課資料查詢','enrolled'],['課程資料查詢（課程規劃表）','curriculum']
+      ]},
+      { title:'跨域修習專區', leaves:[
+        ['微學程修習結果查詢','micro'],['跨領域學程修習結果查詢','cross']
+      ]},
+      { title:'學務資訊查詢', leaves:[
+        ['學生個人缺曠請假明細表','absence'],['學生弱勢助學金資格查詢','grant'],['兵役申辦查詢','military']
+      ]}
+    ]
+  },
+  { key:'record', icon:'✍', title:'登錄',
+    groups:[
+      { title:'教務登錄作業', leaves:[['教學評量登錄作業','build'],['問卷調查','build']]},
+      { title:'學務登錄作業', leaves:[['學生基本資料表','profile'],['社團資料維護作業','build'],['活動申請登錄作業','build']]}
+    ]
+  },
+  { key:'apply', icon:'📄', title:'申請',
+    groups:[
+      { title:'教務申請作業', leaves:[['科目學分抵免申請','build'],['休退學申請作業','build'],['復學申請作業','build']]},
+      { title:'學務申請作業', leaves:[['校內宿舍申請','build'],['學生請假作業','build'],['學雜費減免申請作業','build']]}
+    ]
+  }
+];
+
+/* =====================================================================
+   2. 成績 / 選課資料
+   ===================================================================== */
+var TERM_GRADES = {
+  '114-2':{
+    term:'114學年度第2學期', cls:'資訊工程學系二年級',
+    rows:[
+      ['國文(二)',2.0,2.0,'必修','99.00'],
+      ['資料結構',3.0,3.0,'必修','90.00'],
+      ['系統程式',3.0,3.0,'必修','94.00'],
+      ['離散數學',3.0,3.0,'必修','85.00'],
+      ['電腦硬體裝修',3.0,3.0,'選修','95.00'],
+      ['綠色能源概論',2.0,2.0,'必修','99.00'],
+      ['Linux作業系統實務',3.0,3.0,'選修','93.00'],
+      ['楚漢相爭之職場競爭力',2.0,2.0,'必修','98.00'],
+      ['人工智慧實務',3.0,3.0,'選修','92.00'],
+      ['金門軍事建築史',2.0,2.0,'必修','90.00'],
+      ['機器導航與探索',3.0,3.0,'選修','90.00']
+    ],
+    conduct:'84.00', avg:'92.72', rank:'3/47', pct:'6.38%'
+  },
+  '115-1':{
+    term:'115學年度第1學期', cls:'資訊工程學系三年級',
+    rows:[
+      ['專題製作(一)',3.0,3.0,'必修','*'],
+      ['數位邏輯',3.0,3.0,'必修','*'],
+      ['作業系統',3.0,3.0,'必修','*'],
+      ['TCP/IP協定',3.0,3.0,'選修','*'],
+      ['伺服器架設',3.0,3.0,'選修','*'],
+      ['資料科學',3.0,3.0,'選修','*'],
+      ['大學生的必修學分－情感教育',2.0,2.0,'必修','*'],
+      ['當機器人來上班－未來職場的ＡＩ必修課',2.0,2.0,'必修','*'],
+      ['人工智慧導論',3.0,3.0,'選修','*'],
+      ['現代軟體工程',3.0,3.0,'選修','*']
+    ],
+    conduct:'', avg:'', rank:'', pct:''
+  }
+};
+
+var ENROLLED = [
+  ['0970','大學生的必修學分－情感教育','校際選讀','01',2.0,2.0,'必修','學期','(日)7-8','陳奇中',''],
+  ['0971','當機器人來上班－未來職場的ＡＩ必修課','校際選讀','01',2.0,2.0,'必修','學期','(日)9-10','陳奇中',''],
+  ['0144','數位邏輯','資工一','01',3.0,3.0,'必修','學期','(二)5-7','薛雄儀','E202教室（理工大樓）'],
+  ['0154','專題製作(一)','資工三','01',3.0,3.0,'必修','學期','(五)5-7','李錫捷、吳佳駿、柯志亨、薛雄儀、王建鈞、趙于翔、陳正德、馮玄明','E319數位系統應用實驗室'],
+  ['0156','作業系統','資工三','01',3.0,3.0,'必修','學期','(一)2-4','馮玄明','I101園資電腦教室'],
+  ['0159','伺服器架設','資工三','01',3.0,3.0,'選修','學期','(二)2-4','柯志亨','E321電腦網路實驗室'],
+  ['0160','人工智慧導論','資工三','01',3.0,3.0,'選修','學期','(一)5-7','李錫捷','E320多媒體實驗室'],
+  ['0150','TCP/IP協定','資工二','01',3.0,3.0,'選修','學期','(三)2-4','柯志亨','E321電腦網路實驗室'],
+  ['0153','現代軟體工程','資工二','01',3.0,3.0,'選修','學期','(五)2-4','陳建鈞','E320多媒體實驗室'],
+  ['0138','資料科學','資工轉一','01',3.0,3.0,'選修','學期','(四)2-4','吳佳駿','I103-1園資電腦教室']
+];
+
+/* 歷年成績：三學年 × 上下學期 */
+var TRANSCRIPT = [
+  { year:'第一學年(113)', range:'113年08月至114年07月',
+    s1:[['必','國文(一)',2,'71'],['必','英文(一)',2,'74'],['必','體育',0,'88'],
+        ['通','全球化與兩岸經貿(社會科學)',2,'92'],['必','程式設計',3,'92'],
+        ['必','數位邏輯',3,'46'],['必','多媒體概論',3,'78'],['必','微積分(一)',3,'60'],
+        ['必','計算機概論',3,'66']],
+    s2:[['必','英文(二)',2,'93'],['通','可操作的民主(社會科學)',2,'88'],['必','線性代數',3,'60'],
+        ['必','網頁設計',3,'85'],['必','資訊網路',3,'85'],['必','資訊科技英文導論',3,'95'],
+        ['必','程式設計進階',3,'98'],['選','生成式AI：文字與圖像生成的原理',3,'停'],
+        ['選','VR科技應用導論',2,'90']],
+    sum:{g1:'71.43',g2:'86.24',e1:18,e2:21,a1:0,a2:0,t1:18,t2:39,c1:'82',c2:'82'} },
+  { year:'第二學年(114)', range:'114年08月至115年07月',
+    s1:[['必','計算機結構',3,'96'],['必','資料庫系統管理',3,'87'],['必','電路學',3,'69'],
+        ['選','嵌入式系統概論',3,'99'],['選','現代程式語言',3,'95'],['選','基礎程式設計(C++)',3,'97'],
+        ['選','資訊科技認證',2,'94'],['通','生成式AI與ChatGPT應用(自然科學)',2,'97']],
+    s2:[['必','國文(二)',2,'99'],['通','綠色能源概論(自然科學)',2,'99'],['通','金門軍事建築史(人文藝術)',2,'90'],
+        ['必','資料結構',3,'90'],['必','系統程式',3,'94'],['必','離散數學',3,'85'],
+        ['選','電腦硬體裝修',3,'95'],['選','Linux作業系統實務',3,'93'],['選','人工智慧實務',3,'92'],
+        ['選','機器導航與探索',3,'90'],['通','楚漢相爭之職場競爭力(社會科學)',2,'98'],
+        ['選','教學學習與實務課程',0,'P']],
+    sum:{g1:'91.41',g2:'92.72',e1:22,e2:29,a1:0,a2:0,t1:61,t2:90,c1:'86.50',c2:'84'} },
+  { year:'第三學年(115)', range:'115年08月至116年01月',
+    s1:[['必','專題製作(一)',3,'未'],['必','作業系統',3,'未'],['必','數位邏輯',3,'未'],
+        ['選','TCP/IP協定',3,'未'],['選','伺服器架設',3,'未'],['選','資料科學',3,'未'],
+        ['選','人工智慧導論',3,'未'],['選','現代軟體工程',3,'未'],
+        ['通','大學生的必修學分－情感教育(社會科學)',2,'未'],
+        ['通','當機器人來上班－未來職場的ＡＩ必修課',2,'未']],
+    s2:[],
+    sum:{g1:'',g2:'',e1:'',e2:'',a1:'',a2:'',t1:'',t2:'',c1:'',c2:''} }
+];
+var CREDIT_SUM = {
+  need:{total:'130.00',common:'8.0',ge:'16.0',col:'6.0',major:'51.0',elec:'49.0',out:'12.0'},
+  got:{total:'90.00',common:'8.0',ge:'12.0',col:'6.0',major:'39.0',elec:'22.0',out:'3.0'},
+  avg:'86.14'
+};
+
+/* 課程規劃表（115 學年度入學／日間部學士班／資訊工程學系） */
+var CURRICULUM = [
+  { y:'一年級', s:'第1學期', rows:[
+    ['共同必修','國文(一)',2,2],['共同必修','英文(一)',2,2],['共同必修','體育',0,2],
+    ['專業必修','計算機概論',3,3],['專業必修','程式設計',3,3],['專業必修','微積分(一)',3,3],
+    ['專業必修','數位邏輯',3,3],['專業必修','多媒體概論',3,3],['通識','通識課程（向度一）',2,2]
+  ]},
+  { y:'一年級', s:'第2學期', rows:[
+    ['共同必修','英文(二)',2,2],['共同必修','體育',0,2],
+    ['專業必修','程式設計進階',3,3],['專業必修','線性代數',3,3],['專業必修','資訊網路',3,3],
+    ['專業必修','網頁設計',3,3],['專業必修','資訊科技英文導論',3,3],['通識','通識課程（向度二）',2,2]
+  ]},
+  { y:'二年級', s:'第1學期', rows:[
+    ['共同必修','國文(二)',2,2],
+    ['專業必修','計算機結構',3,3],['專業必修','資料庫系統管理',3,3],['專業必修','電路學',3,3],
+    ['專業選修','現代程式語言',3,3],['專業選修','嵌入式系統概論',3,3],['專業選修','基礎程式設計(C++)',3,3],
+    ['通識','通識課程（向度三）',2,2]
+  ]},
+  { y:'二年級', s:'第2學期', rows:[
+    ['專業必修','資料結構',3,3],['專業必修','系統程式',3,3],['專業必修','離散數學',3,3],
+    ['專業選修','電腦硬體裝修',3,3],['專業選修','Linux作業系統實務',3,3],['專業選修','人工智慧實務',3,3],
+    ['專業選修','機器導航與探索',3,3],['通識','通識課程（向度四）',2,2]
+  ]},
+  { y:'三年級', s:'第1學期', rows:[
+    ['專業必修','專題製作(一)',3,3],['專業必修','作業系統',3,3],
+    ['專業選修','人工智慧導論',3,3],['專業選修','資料科學',3,3],['專業選修','TCP/IP協定',3,3],
+    ['專業選修','伺服器架設',3,3],['專業選修','現代軟體工程',3,3],
+    ['院必修','大學生的必修學分－情感教育',2,2],['院必修','當機器人來上班－未來職場的ＡＩ必修課',2,2]
+  ]},
+  { y:'三年級', s:'第2學期', rows:[
+    ['專業必修','專題製作(二)',3,3],['專業必修','演算法',3,3],
+    ['專業選修','機器學習',3,3],['專業選修','計算機網路實務',3,3],['專業選修','資訊安全',3,3],
+    ['專業選修','雲端運算與虛擬化',3,3],['專業選修','行動應用程式開發',3,3]
+  ]},
+  { y:'四年級', s:'第1學期', rows:[
+    ['專業必修','服務學習',0,2],
+    ['專業選修','深度學習與應用',3,3],['專業選修','物聯網技術與應用',3,3],
+    ['專業選修','分散式系統',3,3],['專業選修','影像處理',3,3],['專業選修','校外實習(一)',3,3]
+  ]},
+  { y:'四年級', s:'第2學期', rows:[
+    ['專業選修','大數據分析',3,3],['專業選修','軟體測試與品質保證',3,3],
+    ['專業選修','邊緣運算',3,3],['專業選修','專業實務講座',2,2],['專業選修','校外實習(二)',3,3]
+  ]}
+];
+
+/* =====================================================================
+   3. 建立側邊選單
+   ===================================================================== */
+function buildMenu(){
+  var host = document.getElementById('menu');
+  MENU.forEach(function(g){
+    var wrap = document.createElement('div');
+    wrap.className = 'menu-group';
+
+    var b = document.createElement('button');
+    b.className = 'm-btn';
+    b.setAttribute('aria-expanded','false');
+    b.innerHTML = '<span class="ic">' + g.icon + '</span><span>' + g.title + '</span><span class="caret">▶</span>';
+    wrap.appendChild(b);
+
+    var sub = document.createElement('div');
+    sub.className = 'sub';
+
+    if (g.leaves){
+      g.leaves.forEach(function(lf){ sub.appendChild(makeLeaf(lf[0], lf[1], g.title)); });
+    } else {
+      g.groups.forEach(function(sg){
+        var sb = document.createElement('button');
+        sb.className = 's-btn';
+        sb.setAttribute('aria-expanded','false');
+        sb.innerHTML = '<span>' + sg.title + '</span><span class="caret">▶</span>';
+        var inner = document.createElement('div');
+        inner.className = 'sub';
+        sg.leaves.forEach(function(lf){ inner.appendChild(makeLeaf(lf[0], lf[1], g.title + ' ／ ' + sg.title)); });
+        sb.addEventListener('click', function(){ toggle(sb, inner); });
+        sub.appendChild(sb); sub.appendChild(inner);
+      });
+    }
+    b.addEventListener('click', function(){ toggle(b, sub); });
+    wrap.appendChild(sub);
+    host.appendChild(wrap);
+  });
+}
+function toggle(btn, panel){
+  var open = panel.classList.toggle('open');
+  btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+}
+function makeLeaf(label, view, crumb){
+  var el = document.createElement('button');
+  el.className = 'leaf';
+  el.textContent = label;
+  el.dataset.view = view;
+  el.addEventListener('click', function(){
+    document.querySelectorAll('.leaf.active').forEach(function(n){ n.classList.remove('active'); });
+    el.classList.add('active');
+    render(view, label, crumb);
+    closeSidebar();
+    window.scrollTo(0,0);
+  });
+  return el;
+}
+buildMenu();
+
+/* 漢堡選單 */
+var sidebar = document.getElementById('sidebar'), overlay = document.getElementById('overlay');
+document.getElementById('hamburger').addEventListener('click', function(){
+  sidebar.classList.toggle('open'); overlay.classList.toggle('show');
+});
+overlay.addEventListener('click', closeSidebar);
+function closeSidebar(){ sidebar.classList.remove('open'); overlay.classList.remove('show'); }
+
+/* =====================================================================
+   4. 畫面渲染
+   ===================================================================== */
+var main = document.getElementById('main');
+function head(title, crumb){
+  return '<div class="page-head"><h1>' + title + '</h1>' +
+         (crumb ? '<div class="crumb">功能選單<span>›</span>' + crumb.replace(/ ／ /g,'<span>›</span>') + '<span>›</span>' + title + '</div>' : '') +
+         '</div>';
+}
+function stateBlock(kind, ico, t, p){
+  return '<div class="card"><div class="state ' + kind + '"><div class="ico">' + ico + '</div><h3>' + t + '</h3><p>' + p + '</p></div></div>';
+}
+function today(){
+  var d = new Date();
+  function z(n){ return (n<10?'0':'') + n; }
+  return d.getFullYear() + '/' + (d.getMonth()+1) + '/' + d.getDate() + ' ' + z(d.getHours()) + ':' + z(d.getMinutes());
+}
+
+function render(view, label, crumb){
+  var h = '';
+  switch(view){
+
+    /* ---------- 選課作業：一律非開放時間 ---------- */
+    case 'closed':
+      h = head(label, crumb) +
+          stateBlock('closed','⛔','非開放時間',
+            '目前非「' + label + '」之開放作業時間，請於公告之選課時程內登入辦理。<br>相關時程請參閱首頁公告或洽教務處課務組。');
+      break;
+
+    /* ---------- 學期成績查詢 ---------- */
+    case 'termGrade':
+      h = head('學期成績查詢', crumb) +
+          '<div class="card"><div class="card-head"><h3>請選擇學年度及學期</h3></div>' +
+          '<div class="card-body"><div class="form-row">' +
+          '<label for="termSel">學年度／學期：</label>' +
+          '<select class="ctl" id="termSel">' +
+          '<option value="115-1">115學年度第1學期</option>' +
+          '<option value="114-2">114學年度第2學期</option>' +
+          '</select>' +
+          '<button class="btn2" onclick="showTermGrade()">確定送出</button>' +
+          '</div></div></div><div id="gradeOut"></div>';
+      break;
+
+    /* ---------- 期中預警 ---------- */
+    case 'warning':
+      h = head('學生期中預警查詢', crumb) +
+          stateBlock('empty','✓','目前無學生預警資料',
+            '本學期尚未收到任何科目之期中預警通知，請繼續保持。');
+      break;
+
+    /* ---------- 歷年成績 ---------- */
+    case 'transcript': h = head('歷年成績查詢', crumb) + transcriptHTML(); break;
+
+    /* ---------- 選課資料 ---------- */
+    case 'enrolled': h = head('選課資料查詢', crumb) + enrolledHTML(); break;
+
+    /* ---------- 課程規劃表 ---------- */
+    case 'curriculum':
+      h = head('課程規劃表', crumb) +
+          '<div class="card"><div class="card-head"><h3>課程規劃表　查詢條件</h3></div><div class="card-body">' +
+          '<div class="form-row">' +
+          '<label>入學年：</label><select class="ctl" id="cYear"><option value="">請選擇入學年</option><option value="115">115 年度</option></select>' +
+          '<label>學制：</label><select class="ctl" id="cSys"><option value="">請選擇學制</option><option value="day">日間部學士班</option></select>' +
+          '<label>系所：</label><select class="ctl" id="cDept"><option value="">請選擇系所</option><option value="csie">資訊工程學系</option></select>' +
+          '<button class="btn2" onclick="showCurriculum()">查詢</button>' +
+          '</div></div></div>' +
+          '<div id="curOut"><div class="card"><div class="state empty"><div class="ico">☰</div><h3>請先選擇查詢條件</h3><p>請依序選擇入學年、學制與系所後按「查詢」。</p></div></div></div>';
+      break;
+
+    /* ---------- 其他查詢 ---------- */
+    case 'micro':
+      h = head(label, crumb) + microHTML('微學程');
+      break;
+    case 'cross':
+      h = head(label, crumb) + microHTML('跨領域學程');
+      break;
+    case 'absence':
+      h = head('學生個人缺曠請假明細表', crumb) +
+          stateBlock('empty','☺','本學期查無缺曠紀錄','115學年度第1學期目前無缺課、曠課或請假紀錄。');
+      break;
+    case 'grant':
+      h = head('學生弱勢助學金資格查詢', crumb) +
+          stateBlock('empty','ⓘ','查無申請資料','本學年度尚未提出弱勢助學金申請，或不具申請資格。詳情請洽學務處生活輔導組。');
+      break;
+    case 'military':
+      h = head('兵役申辦查詢', crumb) +
+          stateBlock('empty','ⓘ','查無兵役申辦紀錄','目前無緩徵、儘後召集或其他兵役申辦案件。');
+      break;
+
+    /* ---------- 基本資料 ---------- */
+    case 'profile': h = head('學生基本資料表', crumb) + profileHTML(); break;
+
+    /* ---------- 建置中 ---------- */
+    case 'build':
+      h = head(label, crumb) +
+          stateBlock('build','🛠','功能建置中',
+            '「' + label + '」為本模擬系統尚未實作之功能，後續可依需求擴充。');
+      break;
+
+    /* ---------- 首頁 ---------- */
+    default: h = homeHTML();
+  }
+  main.innerHTML = h;
+}
+
+/* ---------- 首頁公告 ---------- */
+function homeHTML(){
+  return head('歡迎使用　校務行政資訊系統二','') +
+  /* 公告 1 */
+  '<div class="card">' +
+    '<div class="card-head"><h3>114 學年度起　學期成績單全面以電子查詢公告</h3>' +
+      '<span class="tag blue">教務處</span><span class="tag green">最新公告</span></div>' +
+    '<div class="card-body">' +
+      '<p>本校自 <b>114 學年度第 1 學期</b>起，為響應無紙化校園政策，<b>不再寄發紙本成績通知單</b>，學期成績一律改以校務行政資訊系統電子查詢方式提供。</p>' +
+      '<div class="callout"><b>成績查詢路徑：</b><br>' +
+        '<span class="path-chip">查詢</span> → <span class="path-chip">教務資訊查詢</span> → <span class="path-chip">【學期成績查詢】</span></div>' +
+      '<p class="note-small">如需紙本成績證明（含中英文），請至教務處註冊組另行申請，或使用線上申請系統辦理。</p>' +
+    '</div>' +
+  '</div>' +
+
+  /* 公告 2 */
+  '<div class="card">' +
+    '<div class="card-head"><h3>115 學年度第 1 學期　日間部選課注意事項</h3>' +
+      '<span class="tag amber">課務組</span><span class="tag slate">日間部</span></div>' +
+    '<div class="card-body">' +
+      '<div class="callout amber"><b>學分規定：</b>大學部 <b>1～3 年級</b>每學期修習學分數 <b>不得少於 16 學分</b>；<b>4 年級</b>不得少於 <b>9 學分</b>。</div>' +
+      '<div class="table-wrap"><table class="t" style="min-width:480px">' +
+        '<thead><tr><th style="width:38%">項目</th><th>開始時間</th><th>結束時間</th></tr></thead>' +
+        '<tbody>' +
+          '<tr><td class="l">在校生通識志願選課</td><td>115 年 7 月 6 日 09:00</td><td>115 年 7 月 8 日 21:00</td></tr>' +
+          '<tr><td class="l">通識志願選課結果公告</td><td colspan="2">115 年 7 月 10 日</td></tr>' +
+        '</tbody></table></div>' +
+      '<p class="note-small">※ 逾期未完成選課者，請依公告之人工加選時程，向開課單位提出人工加選申請。</p>' +
+    '</div>' +
+  '</div>' +
+
+  /* 公告 3 */
+  '<div class="card">' +
+    '<div class="card-head"><h3>115 學年度第 1 學期　進修部選課注意事項</h3>' +
+      '<span class="tag amber">課務組</span><span class="tag slate">進修部</span></div>' +
+    '<div class="card-body">' +
+      '<div class="table-wrap"><table class="t" style="min-width:520px">' +
+        '<thead><tr><th style="width:34%">對象</th><th>開始時間</th><th>結束時間</th></tr></thead>' +
+        '<tbody>' +
+          '<tr><td class="l">舊生通識志願選課</td><td>115 年 7 月 6 日 14:00</td><td>115 年 7 月 8 日 21:00</td></tr>' +
+          '<tr><td class="l">新生、轉學生選課</td><td>115 年 9 月 2 日 14:00</td><td>115 年 9 月 4 日 21:00</td></tr>' +
+        '</tbody></table></div>' +
+      '<div class="callout rose"><b>重要提醒：</b>初次登入密碼為<b>身分證末四碼</b>，請務必<b>先修改密碼</b>後再進行選課，以確保個人資料安全。</div>' +
+    '</div>' +
+  '</div>';
+}
+function jump(view){
+  var t = document.querySelector('.leaf[data-view="' + view + '"]');
+  if (t){
+    var p = t.parentElement;
+    while (p && p !== document.body){
+      if (p.classList && p.classList.contains('sub')){
+        p.classList.add('open');
+        var btn = p.previousElementSibling;
+        if (btn && btn.setAttribute) btn.setAttribute('aria-expanded','true');
+      }
+      p = p.parentElement;
+    }
+    t.click();
+  }
+}
+
+/* ---------- 學期成績明細 ---------- */
+function showTermGrade(){
+  var key = document.getElementById('termSel').value;
+  var d = TERM_GRADES[key];
+  var cred = 0, body = '';
+  d.rows.forEach(function(r,i){
+    cred += r[1];
+    body += '<tr><td>' + (i+1) + '</td><td class="l">' + r[0] + '</td><td>' + r[1].toFixed(1) + '</td><td>' +
+            r[2].toFixed(1) + '</td><td>【' + r[3] + '】</td><td><b>' + r[4] + '</b></td></tr>';
+  });
+  document.getElementById('gradeOut').innerHTML =
+    '<div class="card">' +
+      '<div class="doc-head"><div class="univ">國立金門大學</div>' +
+        '<div class="kind">學生個人成績明細表</div><div class="term">' + d.term + '</div></div>' +
+      '<div class="doc-meta"><div>班級：' + d.cls + '　　學號：' + STUDENT.id + '　　姓名：' + STUDENT.name + '</div>' +
+        '<div class="rose">[ * ] 表示未傳送成績。</div></div>' +
+      '<div class="table-wrap"><table class="t">' +
+        '<thead><tr><th style="width:56px">項次</th><th>科目名稱</th><th style="width:86px">學分數</th>' +
+        '<th style="width:96px">授課時數</th><th style="width:90px">必選修</th><th style="width:96px">學期成績</th></tr></thead>' +
+        '<tbody>' + body + '</tbody>' +
+        '<tfoot><tr><td colspan="2">合計 ' + d.rows.length + ' 科</td><td>' + cred.toFixed(1) + '</td><td colspan="3">－</td></tr></tfoot>' +
+      '</table></div>' +
+      '<div class="doc-foot">' +
+        '<div>操行成績：<b>' + (d.conduct || '－') + '</b></div>' +
+        '<div>總平均：<b>' + (d.avg || '－') + '</b></div>' +
+        '<div>班名次／班人數：<b>' + (d.rank || '－') + '</b></div>' +
+        '<div>班名次百分比：<b>' + (d.pct || '－') + '</b></div>' +
+        '<div style="margin-left:auto;color:var(--slate-500)">列印日期：' + today() + '</div>' +
+      '</div>' +
+      '<div class="card-body no-print" style="border-top:1px solid var(--slate-200);text-align:center">' +
+        '<button class="btn2 ghost" onclick="jump(\'termGrade\')">回上一頁</button> ' +
+        '<button class="btn2" onclick="window.print()">列印成績單</button>' +
+      '</div>' +
+    '</div>';
+}
+
+/* ---------- 歷年成績 ---------- */
+function transcriptHTML(){
+  var h = '<div class="card">' +
+    '<div class="doc-head"><div class="univ">國立金門大學</div>' +
+      '<div class="kind">學生歷年成績表</div><div class="term">' + STUDENT.program + '</div></div>' +
+    '<div class="doc-meta"><div>學號：' + STUDENT.id + '　　姓名：' + STUDENT.name + '　　身分證字號：' + STUDENT.idno + '</div>' +
+      '<div class="rose">本資料僅供學生確認修習課程之用</div></div><div class="card-body">';
+
+  /* 僅顯示第三學年(115) */
+  TRANSCRIPT.filter(function(y){ return y.year.indexOf('115') !== -1; }).forEach(function(y){
+    h += '<h4 style="margin:16px 0 8px;font-size:15px;color:var(--blue-900)">' + y.year +
+         ' <span style="font-weight:400;color:var(--slate-500);font-size:13px">（' + y.range + '）</span></h4>' +
+         '<div class="table-wrap"><table class="t" style="min-width:600px">' +
+         '<thead><tr><th style="width:58px">類別</th><th>科目名稱</th><th style="width:70px">學分</th><th style="width:78px">成績</th>' +
+         '<th style="width:58px">類別</th><th>科目名稱</th><th style="width:70px">學分</th><th style="width:78px">成績</th></tr></thead>' +
+         '<thead><tr><th colspan="4" style="background:var(--blue-50);color:var(--blue-800)">第一學期</th>' +
+         '<th colspan="4" style="background:var(--blue-50);color:var(--blue-800)">第二學期</th></tr></thead><tbody>';
+    var n = Math.max(y.s1.length, y.s2.length, 1);
+    for (var i = 0; i < n; i++){
+      h += '<tr>' + cellPair(y.s1[i]) + cellPair(y.s2[i]) + '</tr>';
+    }
+    h += '</tbody><tfoot>' +
+         '<tr><td colspan="2">學業成績</td><td colspan="2">' + dash(y.sum.g1) + '</td>' +
+             '<td colspan="2">學業成績</td><td colspan="2">' + dash(y.sum.g2) + '</td></tr>' +
+         '<tr><td colspan="2">實得學分</td><td colspan="2">' + dash(y.sum.e1) + '</td>' +
+             '<td colspan="2">實得學分</td><td colspan="2">' + dash(y.sum.e2) + '</td></tr>' +
+         '<tr><td colspan="2">累計學分</td><td colspan="2">' + dash(y.sum.t1) + '</td>' +
+             '<td colspan="2">累計學分</td><td colspan="2">' + dash(y.sum.t2) + '</td></tr>' +
+         '<tr><td colspan="2">操行成績</td><td colspan="2">' + dash(y.sum.c1) + '</td>' +
+             '<td colspan="2">操行成績</td><td colspan="2">' + dash(y.sum.c2) + '</td></tr>' +
+         '</tfoot></table></div>';
+  });
+
+  var c = CREDIT_SUM;
+  h += '<h4 style="margin:22px 0 8px;font-size:15px;color:var(--blue-900)">畢業學分審核</h4>' +
+       '<div class="table-wrap"><table class="t" style="min-width:620px">' +
+       '<thead><tr><th style="width:100px"></th><th>總學分</th><th>共同必修</th><th>通識</th><th>院必修</th>' +
+       '<th>專業必修</th><th>專業選修</th><th>外系選修上限</th></tr></thead><tbody>' +
+       '<tr><td><b>畢業應得</b></td><td>' + c.need.total + '</td><td>' + c.need.common + '</td><td>' + c.need.ge +
+       '</td><td>' + c.need.col + '</td><td>' + c.need.major + '</td><td>' + c.need.elec + '</td><td>' + c.need.out + '</td></tr>' +
+       '<tr><td><b>修習實得</b></td><td>' + c.got.total + '</td><td>' + c.got.common + '</td><td>' + c.got.ge +
+       '</td><td>' + c.got.col + '</td><td>' + c.got.major + '</td><td>' + c.got.elec + '</td><td>' + c.got.out + '</td></tr>' +
+       '</tbody></table></div>' +
+       '<div class="callout"><b>學業總平均：' + c.avg + '</b>　｜　尚差 ' +
+       (Number(c.need.total) - Number(c.got.total)).toFixed(2) + ' 學分達畢業門檻。</div>' +
+       '<div class="note-small">' +
+         '成績欄註記：抵－抵免；免－免修；停－停修；／－選修學年課未修完；P－通過；F－未通過。<br>' +
+         '必選修註記：必－必修；選－選修；重－重修；暑－暑修；寒－寒修；補－補修。' +
+       '</div>' +
+       '<div class="no-print" style="text-align:center;margin-top:16px">' +
+         '<button class="btn2" onclick="window.print()">列印歷年成績表</button></div>' +
+       '</div><div class="doc-foot"><div style="margin-left:auto;color:var(--slate-500)">列印日期：' + today() + '</div></div></div>';
+  return h;
+}
+function cellPair(r){
+  if (!r) return '<td></td><td></td><td></td><td></td>';
+  return '<td>' + r[0] + '</td><td class="l">' + r[1] + '</td><td>' + r[2] + '</td><td>' + r[3] + '</td>';
+}
+function dash(v){ return (v === '' || v === undefined || v === null) ? '－' : v; }
+
+/* ---------- 選課資料 ---------- */
+function enrolledHTML(){
+  var body = '', cred = 0;
+  ENROLLED.forEach(function(r){
+    cred += r[4];
+    body += '<tr><td>' + r[0] + '</td><td class="l"><a href="#" onclick="return false">' + r[1] + '</a></td>' +
+            '<td>' + r[2] + '</td><td>' + r[3] + '</td><td>' + r[4].toFixed(1) + '</td><td>' + r[5].toFixed(1) + '</td>' +
+            '<td>【' + r[6] + '】</td><td>【' + r[7] + '】</td><td>' + r[8] + '</td>' +
+            '<td class="l">' + r[9] + '</td><td class="l">' + (r[10] || '－') + '</td>' +
+            '<td><a href="#" onclick="return false" style="color:var(--rose-700)">教學綱要</a></td></tr>';
+  });
+  return '<div class="card">' +
+    '<div class="doc-head"><div class="univ">國立金門大學</div>' +
+      '<div class="kind">學生個人選課清單</div><div class="term">115學年度第1學期</div></div>' +
+    '<div class="doc-meta"><div>班級：' + STUDENT.classNow + '　　學號：' + STUDENT.id + '　　姓名：' + STUDENT.name + '</div>' +
+      '<div>列印日期：' + today() + '</div></div>' +
+    '<div class="table-wrap"><table class="t" style="min-width:1020px">' +
+      '<thead><tr><th>選課代碼</th><th>課目名稱</th><th>班級</th><th>分組</th><th>學分</th><th>時數</th>' +
+      '<th>必選修</th><th>開課別</th><th>上課時間</th><th>授課教師</th><th>上課教室</th><th>教學綱要</th></tr></thead>' +
+      '<tbody>' + body + '</tbody>' +
+      '<tfoot><tr><td colspan="4">合計 ' + ENROLLED.length + ' 科</td><td>' + cred.toFixed(1) + '</td>' +
+      '<td colspan="7">－</td></tr></tfoot>' +
+    '</table></div>' +
+    '<div class="card-body"><div class="note-small"><b>說明：</b>' +
+      '<ol><li>請同學詳細核對所列課程是否正確。</li>' +
+      '<li>如有疑義者，應於選課期間內親洽教務處課務組詢問。</li></ol></div>' +
+      '<div class="no-print" style="text-align:center;margin-top:14px"><button class="btn2" onclick="window.print()">列印選課清單</button></div>' +
+    '</div></div>';
+}
+
+/* ---------- 課程規劃表 ---------- */
+function showCurriculum(){
+  var y = document.getElementById('cYear').value,
+      s = document.getElementById('cSys').value,
+      d = document.getElementById('cDept').value;
+  if (!y || !s || !d){
+    document.getElementById('curOut').innerHTML =
+      '<div class="card"><div class="state build"><div class="ico">!</div><h3>請先選擇查詢條件</h3>' +
+      '<p>入學年、學制、系所三個欄位皆須選擇後才能查詢。</p></div></div>';
+    return;
+  }
+  var h = '<div class="card">' +
+    '<div class="doc-head"><div class="univ">國立金門大學</div><div class="kind">課程規劃表</div>' +
+    '<div class="term">115 學年度入學　日間部學士班　資訊工程學系</div></div>';
+
+  var byYear = {};
+  CURRICULUM.forEach(function(b){ (byYear[b.y] = byYear[b.y] || []).push(b); });
+
+  h += '<div class="card-body">';
+  Object.keys(byYear).forEach(function(yr){
+    h += '<h4 style="margin:18px 0 8px;font-size:15px;color:var(--blue-900)">' + yr + '</h4>' +
+         '<div class="table-wrap"><table class="t" style="min-width:620px">' +
+         '<thead><tr><th style="width:96px">學期</th><th style="width:110px">課程類別</th><th>科目名稱</th>' +
+         '<th style="width:74px">學分</th><th style="width:74px">時數</th></tr></thead><tbody>';
+    byYear[yr].forEach(function(blk){
+      blk.rows.forEach(function(r, i){
+        h += '<tr>' + (i === 0 ? '<td rowspan="' + blk.rows.length + '"><b>' + blk.s + '</b></td>' : '') +
+             '<td>' + r[0] + '</td><td class="l">' + r[1] + '</td><td>' + r[2].toFixed(1) + '</td><td>' + r[3].toFixed(1) + '</td></tr>';
+      });
+    });
+    h += '</tbody></table></div>';
+  });
+
+  h += '<div class="callout"><b>畢業學分數：130 學分</b>　（共同必修 8 ／ 通識 16 ／ 院必修 6 ／ 專業必修 51 ／ 專業選修 49；外系選修上限 12 學分）</div>' +
+       '<div class="note-small">※ 本表為課程規劃參考，實際開課科目、學分數與開課學期以每學期公告之課程查詢系統為準。</div>' +
+       '<div class="no-print" style="text-align:center;margin-top:16px"><button class="btn2" onclick="window.print()">列印課程規劃表</button></div>' +
+       '</div></div>';
+  document.getElementById('curOut').innerHTML = h;
+}
+
+/* ---------- 跨域修習 ---------- */
+function microHTML(kind){
+  return '<div class="card"><div class="card-head"><h3>' + kind + '修習結果查詢</h3>' +
+    '<span class="tag blue">115學年度第1學期</span></div>' +
+    '<div class="table-wrap"><table class="t" style="min-width:600px">' +
+    '<thead><tr><th>' + kind + '名稱</th><th style="width:100px">應修學分</th><th style="width:100px">已修學分</th>' +
+    '<th style="width:110px">修習狀態</th></tr></thead><tbody>' +
+    '<tr><td class="l">人工智慧應用' + kind + '</td><td>12.0</td><td>9.0</td><td><span class="tag amber">修習中</span></td></tr>' +
+    '<tr><td class="l">資料科學' + kind + '</td><td>12.0</td><td>3.0</td><td><span class="tag slate">未完成</span></td></tr>' +
+    '</tbody></table></div>' +
+    '<div class="card-body"><div class="note-small">※ 本頁為模擬資料。學分採認結果以教務處課務組審定為準。</div></div></div>';
+}
+
+/* ---------- 學生基本資料 ---------- */
+function profileHTML(){
+  return '<div class="card"><div class="card-head"><h3>學生基本資料表</h3>' +
+    '<span class="tag blue">115學年度第1學期</span></div>' +
+    '<div class="table-wrap"><table class="t" style="min-width:520px">' +
+    '<tbody>' +
+    '<tr><th style="width:150px">學號</th><td class="l">' + STUDENT.id + '</td></tr>' +
+    '<tr><th>姓名</th><td class="l">' + STUDENT.name + '</td></tr>' +
+    '<tr><th>身分證字號</th><td class="l">' + STUDENT.idno + '</td></tr>' +
+    '<tr><th>學制／系所</th><td class="l">' + STUDENT.program + '</td></tr>' +
+    '<tr><th>班級</th><td class="l">' + STUDENT.classNow + '</td></tr>' +
+    '<tr><th>在學狀態</th><td class="l"><span class="tag green">在學</span></td></tr>' +
+    '</tbody></table></div>' +
+    '<div class="card-body"><div class="note-small">※ 如需修改聯絡方式、通訊地址或緊急聯絡人，請至學務處生活輔導組辦理。</div></div></div>';
+}
+
+/* 初始畫面 */
+render('home','','');
+</script>
+</body>
+</html>
