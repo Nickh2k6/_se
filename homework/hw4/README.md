@@ -26,7 +26,7 @@
 ![alt text](image-6.png)
 
 ## 3. add ccckmitFork.md 新增 Fork 練習檔案
-1. 把自己的專案Fork到我的電腦上
+1. 把自己的專案Fork到我的電腦上                                    
 ![alt text](image-7.png)
 2. 新增了一個名為 ccckmitFork.md 的檔案並完成了add commit push
 ## 4. Merge pull request #1 from Nickh2k6/main 完成 PR 合併
