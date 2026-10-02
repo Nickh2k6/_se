@@ -66,5 +66,4 @@ python -m http.server 8000
 ## 備註
 
 - 課程規劃表的內容目前是依歷年成績單推算的模擬資料，之後換成正式 PDF 的內容即可（在 `portal.html` 的 `CURRICULUM` 變數）。
-- 身分證字號已做遮罩處理，若要顯示完整值，改 `portal.html` 中 `STUDENT.idno`。
 - 本系統為課程作業之模擬系統，非實際校務系統。
