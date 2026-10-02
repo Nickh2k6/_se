@@ -17,6 +17,7 @@
 ![alt text](image-1.png)
 
 4.切換回主分支 git checkout main
+
 ![alt text](image-4.png)
 
 5.將新分支合併進來 git merge developGitBranch
