@@ -1,4 +1,4 @@
-母專案連結 https://github.com/se-test-111310514/git-examples/commits/main/
+母專案連結 https://github.com/se-test-111310514/git-examples
 * 分支 https://github.com/se-test-111310514/git-examples/commits/main/
 
 子專案連結 https://github.com/Nickh2k6/git-examples-fork
