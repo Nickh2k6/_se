@@ -4,16 +4,22 @@
 子專案連結 https://github.com/Nickh2k6/git-examples-fork
 
 ## 在github上建立新的 organization，名字為 se-test-111310514
-
+![alt text](image-2.png)
 ## 1. Initial commit 專案的初始存檔
 1.在 GitHub 網站上點擊「Create new repository」建立新專案，owner為se-test-111310514
+![alt text](image-3.png)
 ## 2. add gitbranch.md 本地分支開發與合併
 1.輸入了 git checkout -b developGitBranch 建立並切換到新分支
+![alt text](image.png)
 2.建立了一個名為 gitBranch.md 的檔案
 3.輸入 git add *.md 與 git commit -m "add gitBranch.md" 進行存檔
+![alt text](image-1.png)
 4.切換回主分支 git checkout main
+![alt text](image-4.png)
 5.將新分支合併進來 git merge developGitBranch
+![alt text](image-5.png)
 6.git push origin main 把這筆紀錄推送到github
+![alt text](image-6.png)
 ## 3. add ccckmitFork.md 新增 Fork 練習檔案
 1.把自己的專案Fork到我的電腦上
 2.新增了一個名為 ccckmitFork.md 的檔案並完成了add commit push
