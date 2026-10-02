@@ -4,7 +4,7 @@
 子專案連結 https://github.com/Nickh2k6/git-examples-fork
 
 ## 在github上建立新的 organization，名字為 se-test-111310514
-![alt text](image-2.png)
+1. ![alt text](image-2.png)
 ## 1. Initial commit 專案的初始存檔
 1. 在 GitHub 網站上點擊「Create new repository」建立新專案，owner為se-test-111310514
 ![alt text](image-3.png)
