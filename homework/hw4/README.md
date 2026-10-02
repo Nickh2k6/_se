@@ -16,7 +16,7 @@
 3. 輸入 git add *.md 與 git commit -m "add gitBranch.md" 進行存檔
 ![alt text](image-1.png)
 
-4. 切換回主分支 git checkout main
+4. 切換回主分支 git checkout main                      
 ![alt text](image-4.png)
 
 5. 將新分支合併進來 git merge developGitBranch
@@ -27,6 +27,7 @@
 
 ## 3. add ccckmitFork.md 新增 Fork 練習檔案
 1. 把自己的專案Fork到我的電腦上
+![alt text](image-7.png)
 2. 新增了一個名為 ccckmitFork.md 的檔案並完成了add commit push
 ## 4. Merge pull request #1 from Nickh2k6/main 完成 PR 合併
 1. 利用了自己的帳號 Nickh2k6 的主分支 (main)，向這個總專案發起了一個「合併請求（Pull Request，簡稱 PR）」
