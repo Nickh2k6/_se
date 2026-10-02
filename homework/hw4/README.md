@@ -6,7 +6,7 @@
 ## 在github上建立新的 organization，名字為 se-test-111310514
 
 ## 1. Initial commit 專案的初始存檔
-1.在 GitHub 網站上點擊「Create new repository」建立新專案，ower為se-test-111310514
+1.在 GitHub 網站上點擊「Create new repository」建立新專案，owner為se-test-111310514
 ## 2. add gitbranch.md 本地分支開發與合併
 1.輸入了 git checkout -b developGitBranch 建立並切換到新分支
 2.建立了一個名為 gitBranch.md 的檔案
