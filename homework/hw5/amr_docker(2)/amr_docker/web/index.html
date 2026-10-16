@@ -1,0 +1,308 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AMR 監控面板</title>
+<style>
+  :root {
+    --bg: #f4f5f7; --panel: #ffffff; --text: #1d2330; --muted: #6b7280;
+    --line: #e3e6eb; --accent: #2563eb; --ok: #15803d; --bad: #b91c1c; --warn: #b45309;
+    --trail: #2563eb; --grid: #eceef2;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #12151b; --panel: #1b1f27; --text: #e6e8ec; --muted: #9aa1ad;
+      --line: #2a303b; --accent: #60a5fa; --ok: #4ade80; --bad: #f87171; --warn: #fbbf24;
+      --trail: #60a5fa; --grid: #232833;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 15px/1.5 system-ui, "Noto Sans TC", "PingFang TC", sans-serif;
+  }
+  header {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    padding: 14px 20px; border-bottom: 1px solid var(--line); background: var(--panel);
+  }
+  h1 { font-size: 17px; margin: 0; font-weight: 600; }
+  .brand { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
+  nav { display: flex; gap: 4px; }
+  nav a {
+    color: var(--muted); text-decoration: none; font-size: 14px;
+    padding: 4px 10px; border-radius: 6px;
+  }
+  nav a:hover { color: var(--text); background: var(--bg); }
+  nav a[aria-current="page"] { color: var(--text); background: var(--bg); font-weight: 600; }
+  .pill {
+    display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px;
+    border-radius: 999px; border: 1px solid var(--line); font-size: 13px;
+  }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+  .pill.ok .dot { background: var(--ok); }
+  .pill.bad .dot { background: var(--bad); }
+  .pill.warn .dot { background: var(--warn); }
+  main {
+    display: grid; gap: 16px; padding: 20px; max-width: 1100px; margin: 0 auto;
+    grid-template-columns: 260px 1fr;
+  }
+  @media (max-width: 760px) { main { grid-template-columns: 1fr; padding: 16px; } }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; }
+  .card h2 { font-size: 13px; font-weight: 600; color: var(--muted); margin: 0 0 10px; letter-spacing: .02em; }
+  .floor { font-size: 72px; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; }
+  .floor small { font-size: 22px; font-weight: 500; color: var(--muted); margin-left: 4px; }
+  .stale { color: var(--muted); font-size: 12px; margin-top: 8px; min-height: 18px; }
+  dl { display: grid; grid-template-columns: auto 1fr; gap: 4px 14px; margin: 0; }
+  dt { color: var(--muted); }
+  dd { margin: 0; font-variant-numeric: tabular-nums; text-align: right; font-family: ui-monospace, monospace; }
+  .side { display: grid; gap: 16px; align-content: start; }
+  .map-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+  .map-head h2 { margin: 0; }
+  select, button {
+    font: inherit; font-size: 13px; color: var(--text); background: var(--bg);
+    border: 1px solid var(--line); border-radius: 6px; padding: 4px 8px;
+  }
+  button { cursor: pointer; }
+  canvas { width: 100%; height: 420px; display: block; border-radius: 6px; background: var(--bg); }
+  #log {
+    grid-column: 1 / -1; font-family: ui-monospace, monospace; font-size: 12px;
+    color: var(--muted); max-height: 140px; overflow: auto; white-space: pre-wrap; margin: 0;
+  }
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">
+    <h1>跨樓層 AMR 監控</h1>
+    <nav><a href="./" aria-current="page">即時</a><a href="history.html">歷史紀錄</a></nav>
+  </div>
+  <span id="conn" class="pill"><span class="dot"></span><span id="connText">連線中…</span></span>
+</header>
+
+<main>
+  <div class="side">
+    <section class="card">
+      <h2>目前樓層 /current_floor</h2>
+      <div class="floor"><span id="floor">–</span><small>F</small></div>
+      <div class="stale" id="floorAge"></div>
+    </section>
+
+    <section class="card">
+      <h2>機器人位姿</h2>
+      <dl>
+        <dt>x</dt><dd id="px">–</dd>
+        <dt>y</dt><dd id="py">–</dd>
+        <dt>θ</dt><dd id="pth">–</dd>
+      </dl>
+      <div class="stale" id="poseAge"></div>
+    </section>
+  </div>
+
+  <section class="card">
+    <div class="map-head">
+      <h2>軌跡（單位：公尺）</h2>
+      <div>
+        <select id="poseTopic" aria-label="位姿來源 topic">
+          <option value="/odom|nav_msgs/msg/Odometry">/odom（里程計）</option>
+          <option value="/amcl_pose|geometry_msgs/msg/PoseWithCovarianceStamped">/amcl_pose（AMCL 定位）</option>
+        </select>
+        <button id="clear">清除軌跡</button>
+      </div>
+    </div>
+    <canvas id="map"></canvas>
+  </section>
+
+  <section class="card" style="grid-column: 1 / -1">
+    <h2>事件紀錄</h2>
+    <pre id="log"></pre>
+  </section>
+</main>
+
+<script>
+// ---------------------------------------------------------------
+// rosbridge 協定（JSON over WebSocket）
+//   訂閱：{"op":"subscribe","topic":"/x","type":"pkg/msg/Type"}
+//   收到：{"op":"publish","topic":"/x","msg":{...}}
+// 這裡不用 roslib.js，直接寫原始協定，比較看得懂底層在做什麼。
+// ---------------------------------------------------------------
+
+// 走 Nginx 的 /rosbridge/ 路徑，同一個 host:port，不用另外開 9090 給外部
+const WS_URL = `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/rosbridge/`;
+
+const $ = (id) => document.getElementById(id);
+let ws = null;
+let retryMs = 1000;
+let poseSub = null;          // 目前訂閱中的位姿 topic
+let lastFloorAt = 0, lastPoseAt = 0;
+const trail = [];            // [{x, y}]
+const MAX_TRAIL = 2000;
+
+function log(text) {
+  const t = new Date().toLocaleTimeString('zh-TW', { hour12: false });
+  const el = $('log');
+  el.textContent = `[${t}] ${text}\n` + el.textContent.slice(0, 5000);
+}
+
+function setConn(state, text) {
+  $('conn').className = 'pill ' + state;
+  $('connText').textContent = text;
+}
+
+function send(obj) {
+  if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(obj));
+}
+
+function subscribe(topic, type, throttleMs = 0) {
+  send({ op: 'subscribe', id: 'sub:' + topic, topic, type, throttle_rate: throttleMs, queue_length: 1 });
+  log(`訂閱 ${topic} (${type})`);
+}
+
+function unsubscribe(topic) {
+  send({ op: 'unsubscribe', id: 'sub:' + topic, topic });
+}
+
+function subscribePose() {
+  const [topic, type] = $('poseTopic').value.split('|');
+  if (poseSub) unsubscribe(poseSub);
+  poseSub = topic;
+  // 里程計通常 20–50 Hz，網頁 10 Hz 就夠，交給 rosbridge 端節流
+  subscribe(topic, type, 100);
+}
+
+function connect() {
+  setConn('warn', '連線中…');
+  ws = new WebSocket(WS_URL);
+
+  ws.onopen = () => {
+    retryMs = 1000;
+    setConn('ok', '已連線 rosbridge');
+    log(`已連線 ${WS_URL}`);
+    subscribe('/current_floor', 'std_msgs/msg/Int32');
+    subscribePose();
+  };
+
+  ws.onmessage = (ev) => {
+    const data = JSON.parse(ev.data);
+    if (data.op === 'publish') handleMsg(data.topic, data.msg);
+    else if (data.op === 'status' && data.level === 'error') log('rosbridge 錯誤：' + data.msg);
+  };
+
+  ws.onclose = () => {
+    setConn('bad', `已斷線，${Math.round(retryMs / 1000)} 秒後重試`);
+    poseSub = null;
+    setTimeout(connect, retryMs);
+    retryMs = Math.min(retryMs * 2, 10000);   // 指數退避，最多 10 秒
+  };
+
+  ws.onerror = () => log('WebSocket 錯誤（Nginx 或 rosbridge 沒開？）');
+}
+
+function handleMsg(topic, msg) {
+  if (topic === '/current_floor') {
+    lastFloorAt = Date.now();
+    const prev = $('floor').textContent;
+    $('floor').textContent = msg.data;
+    if (prev !== '–' && prev !== String(msg.data)) {
+      log(`樓層變更：${prev}F → ${msg.data}F`);
+      trail.length = 0;   // 換樓層，舊軌跡屬於另一張地圖
+    }
+    return;
+  }
+  if (topic === poseSub) {
+    // Odometry 和 PoseWithCovarianceStamped 的位置都在 msg.pose.pose
+    const p = msg.pose.pose.position;
+    const q = msg.pose.pose.orientation;
+    const yaw = Math.atan2(2 * (q.w * q.z + q.x * q.y), 1 - 2 * (q.y * q.y + q.z * q.z));
+    lastPoseAt = Date.now();
+    $('px').textContent = p.x.toFixed(3);
+    $('py').textContent = p.y.toFixed(3);
+    $('pth').textContent = (yaw * 180 / Math.PI).toFixed(1) + '°';
+    const last = trail[trail.length - 1];
+    if (!last || Math.hypot(p.x - last.x, p.y - last.y) > 0.02) {
+      trail.push({ x: p.x, y: p.y });
+      if (trail.length > MAX_TRAIL) trail.shift();
+    }
+    pose = { x: p.x, y: p.y, yaw };
+  }
+}
+
+// ---------------- 軌跡繪圖 ----------------
+let pose = null;
+const canvas = $('map');
+const ctx = canvas.getContext('2d');
+const css = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+
+function draw() {
+  const dpr = window.devicePixelRatio || 1;
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  if (canvas.width !== w * dpr || canvas.height !== h * dpr) {
+    canvas.width = w * dpr; canvas.height = h * dpr;
+  }
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, w, h);
+
+  // 自動縮放：把軌跡框起來，至少顯示 ±5 m
+  const pts = pose ? trail.concat([pose]) : trail;
+  let minX = -5, maxX = 5, minY = -5, maxY = 5;
+  for (const p of pts) {
+    minX = Math.min(minX, p.x - 1); maxX = Math.max(maxX, p.x + 1);
+    minY = Math.min(minY, p.y - 1); maxY = Math.max(maxY, p.y + 1);
+  }
+  const scale = Math.min(w / (maxX - minX), h / (maxY - minY));
+  const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2;
+  // ROS 座標：x 往右、y 往上；canvas 的 y 往下，所以要反轉
+  const tx = (x) => w / 2 + (x - cx) * scale;
+  const ty = (y) => h / 2 - (y - cy) * scale;
+
+  // 1 m 格線
+  ctx.strokeStyle = css('--grid'); ctx.lineWidth = 1;
+  const halfW = w / 2 / scale, halfH = h / 2 / scale;   // 畫面實際涵蓋的範圍
+  ctx.beginPath();
+  for (let x = Math.ceil(cx - halfW); x <= cx + halfW; x++) { ctx.moveTo(tx(x), 0); ctx.lineTo(tx(x), h); }
+  for (let y = Math.ceil(cy - halfH); y <= cy + halfH; y++) { ctx.moveTo(0, ty(y)); ctx.lineTo(w, ty(y)); }
+  ctx.stroke();
+
+  // 原點
+  ctx.strokeStyle = css('--muted');
+  ctx.beginPath();
+  ctx.moveTo(tx(0) - 6, ty(0)); ctx.lineTo(tx(0) + 6, ty(0));
+  ctx.moveTo(tx(0), ty(0) - 6); ctx.lineTo(tx(0), ty(0) + 6);
+  ctx.stroke();
+
+  // 軌跡
+  if (trail.length > 1) {
+    ctx.strokeStyle = css('--trail'); ctx.globalAlpha = 0.55; ctx.lineWidth = 2;
+    ctx.beginPath();
+    trail.forEach((p, i) => i ? ctx.lineTo(tx(p.x), ty(p.y)) : ctx.moveTo(tx(p.x), ty(p.y)));
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
+
+  // 機器人（三角形指向朝向）
+  if (pose) {
+    ctx.save();
+    ctx.translate(tx(pose.x), ty(pose.y));
+    ctx.rotate(-pose.yaw);
+    ctx.fillStyle = css('--accent');
+    ctx.beginPath(); ctx.moveTo(12, 0); ctx.lineTo(-8, 7); ctx.lineTo(-8, -7); ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // 資料多久沒更新
+  const age = (t) => t ? `${((Date.now() - t) / 1000).toFixed(0)} 秒前更新` : '尚未收到資料';
+  $('floorAge').textContent = age(lastFloorAt);
+  $('poseAge').textContent = age(lastPoseAt);
+
+  requestAnimationFrame(draw);
+}
+
+$('poseTopic').addEventListener('change', () => { trail.length = 0; pose = null; subscribePose(); });
+$('clear').addEventListener('click', () => { trail.length = 0; });
+
+connect();
+requestAnimationFrame(draw);
+</script>
+</body>
+</html>
