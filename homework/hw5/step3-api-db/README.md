@@ -30,7 +30,7 @@
 ## 目錄結構
 
 ```
-amr_docker/
+step3-api-db/
 ├── docker-compose.yml       # 五個 service：ros_dev、rosbridge、nginx、api、postgres
 ├── .env.example             # UID/GID、ROS_DOMAIN_ID、資料庫帳密
 ├── docker/
@@ -78,7 +78,7 @@ sudo usermod -aG docker $USER
 ## 1. 設定與啟動
 
 ```bash
-cd amr_docker
+cd step3-api-db
 cp .env.example .env
 id -u && id -g          # 把這兩個數字填進 .env 的 USER_UID / USER_GID
 
@@ -136,7 +136,7 @@ ros2 launch slam_toolbox online_async_launch.py use_sim_time:=true
 
 # 主機：開 RViz2 看建圖結果、用鍵盤遙控機器人繞一圈
 
-# 容器內：存地圖 → 主機的 amr_docker/maps/ 會直接出現檔案
+# 容器內：存地圖 → 主機的 step3-api-db/maps/ 會直接出現檔案
 ros2 run nav2_map_server map_saver_cli -f /ws/maps/floor1
 ```
 

@@ -19,7 +19,7 @@ ROS 2 Humble 開發容器 + rosbridge。Gazebo 和 RViz2 留在主機原生執�
 ## 目錄結構
 
 ```
-amr_docker/
+step1-ros-docker/
 ├── docker-compose.yml       # 兩個 service：ros_dev、rosbridge
 ├── .env.example             # UID/GID、ROS_DOMAIN_ID
 ├── docker/
@@ -56,7 +56,7 @@ sudo usermod -aG docker $USER
 ## 1. 設定與啟動
 
 ```bash
-cd amr_docker
+cd step1-ros-docker
 cp .env.example .env
 id -u && id -g          # 把這兩個數字填進 .env 的 USER_UID / USER_GID
 
@@ -114,7 +114,7 @@ ros2 launch slam_toolbox online_async_launch.py use_sim_time:=true
 
 # 主機：開 RViz2 看建圖結果、用鍵盤遙控機器人繞一圈
 
-# 容器內：存地圖 → 主機的 amr_docker/maps/ 會直接出現檔案
+# 容器內：存地圖 → 主機的 step1-ros-docker/maps/ 會直接出現檔案
 ros2 run nav2_map_server map_saver_cli -f /ws/maps/floor1
 ```
 
