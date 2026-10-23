@@ -46,6 +46,17 @@ hw6/
 
 錯誤一律回 `{"error": "訊息"}`，前端會直接把這個訊息顯示給使用者。
 
+### 實際操作畫面
+
+| | |
+|---|---|
+| ① 剛打開：空清單<br>![空清單](images/app-01-empty.png) | ② 在輸入框打字<br>![輸入](images/app-02-typing.png) |
+| ③ 新增三筆之後<br>![新增後](images/app-03-added.png) | ④ 送出空白標題：顯示伺服器回傳的錯誤<br>![錯誤訊息](images/app-04-error.png) |
+| ⑤ 勾選完成：刪除線，出現「清除已完成」<br>![勾選完成](images/app-05-completed.png) | ⑥ 篩選「未完成」<br>![未完成](images/app-06-filter-active.png) |
+| ⑦ 篩選「已完成」<br>![已完成](images/app-07-filter-completed.png) | ⑧ 雙擊標題進入編輯<br>![編輯](images/app-08-editing.png) |
+
+這些截圖也是用 Playwright 自動操作網頁拍的，跟 E2E 測試走的是同一套操作流程。
+
 ## 環境需求
 
 - Rust（`cargo`）
@@ -105,6 +116,10 @@ cargo test --lib
 
 ### 結果
 
+![cargo test --lib 結果](images/test-unit.png)
+
+<details><summary>文字版輸出</summary>
+
 ```
 running 15 tests
 test todo::tests::add_assigns_incrementing_ids_and_starts_incomplete ... ok
@@ -126,6 +141,8 @@ test todo::tests::validate_title_length_boundary_counts_chars_not_bytes ... ok
 test result: ok. 15 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
 ```
 
+</details>
+
 ### 前端單元測試（選做）
 
 前端把「不碰畫面」的邏輯抽到 [client/logic.js](client/logic.js)（組 API 網址、統計文字、解析錯誤訊息），用 Node 內建的測試框架測，不用安裝任何套件：
@@ -134,6 +151,10 @@ test result: ok. 15 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fin
 cd client
 npm test
 ```
+
+![npm test 結果](images/test-client.png)
+
+<details><summary>文字版輸出</summary>
 
 ```
 ✔ todosUrl：all 不加參數，其他篩選加 ?filter= (0.5415ms)
@@ -146,6 +167,8 @@ npm test
 ℹ pass 6
 ℹ fail 0
 ```
+
+</details>
 
 ---
 
@@ -164,6 +187,12 @@ npm test
 因為每個測試都有自己的一台伺服器、自己的資料，所以 15 個測試可以**平行**執行而不互相干擾。
 
 Rust 的慣例是：放在 `tests/` 資料夾的檔案是「整合測試」，只能用 crate 的公開 API（這裡只有 `todo_server::app()`），剛好符合黑盒子測試的精神。
+
+### 先手動打 API 看看
+
+寫自動化測試之前，先開伺服器、用 `curl` 手動送請求，確認 API 的行為。系統測試做的事情其實就是把這些手動操作寫成程式，再自動檢查結果：
+
+![用 curl 手動測 API](images/api-curl.png)
 
 ### 測了什麼
 
@@ -196,6 +225,10 @@ cargo test --test api_test
 
 ### 結果
 
+![cargo test --test api_test 結果](images/test-api.png)
+
+<details><summary>文字版輸出</summary>
+
 ```
 running 15 tests
 test wrong_method_returns_405 ... ok
@@ -216,6 +249,8 @@ test filter_query_and_stats ... ok
 
 test result: ok. 15 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
 ```
+
+</details>
 
 ---
 
@@ -279,6 +314,14 @@ npx playwright show-report
 
 ### 結果
 
+![npx playwright test 結果](images/test-e2e.png)
+
+`npx playwright show-report` 打開的 HTML 報告：
+
+![Playwright HTML 報告：10 個全過](images/report-pass-list.png)
+
+<details><summary>文字版輸出</summary>
+
 ```
 [WebServer]    Finished `dev` profile [unoptimized + debuginfo] target(s) in 16.27s
 [WebServer]     Running `...\debug\todo_server.exe`
@@ -299,6 +342,8 @@ Running 10 tests using 1 worker
 
   10 passed (25.5s)
 ```
+
+</details>
 
 ---
 
@@ -344,7 +389,23 @@ test create_returns_201_with_new_todo_and_json_content_type ... FAILED
 test result: FAILED. 13 passed; 2 failed            ← 系統測試
 ```
 
-單元測試和系統測試都抓到了這個 bug（E2E 的「空白標題」測試也會抓到）。改回來之後又全部通過。
+![故意改壞後的 cargo test](images/mutation-cargo.png)
+
+失敗訊息直接告訴我們哪裡錯：例如 `left: Ok("  買牛奶  ")`（實際結果）、`right: Ok("買牛奶")`（預期結果），一眼就能看出空白沒被去掉。系統測試那邊則是空白標題回了 `201`，而不是預期的 `400`。
+
+接著在**同一個壞掉的版本**上跑 E2E 測試，「空白標題」那個測試也失敗了：
+
+![故意改壞後的 playwright test](images/mutation-e2e.png)
+
+Playwright 在測試失敗時會自動截圖。可以看到伺服器沒有擋下空白標題，所以清單裡多了一筆看不到字的項目，也沒有出現錯誤訊息：
+
+![Playwright 失敗時自動拍的截圖](images/e2e-failed-screenshot.png)
+
+HTML 報告裡可以看到失敗的步驟（`Expect "toHaveText"` 打叉）、錯誤訊息、失敗截圖，還有可以一步一步回放的 trace：
+
+![Playwright 報告中失敗測試的詳細頁](images/report-fail-detail.png)
+
+三層測試都抓到了這個 bug。把程式改回來之後，又全部通過。
 
 ### 5. 環境問題（Windows）
 
