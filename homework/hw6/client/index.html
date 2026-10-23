@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Todo 待辦清單</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main class="card">
+    <h1>待辦清單</h1>
+
+    <form id="new-todo-form" data-testid="new-todo-form">
+      <input id="new-todo" data-testid="new-todo" placeholder="要做什麼？" autocomplete="off">
+      <button type="submit" data-testid="add-button">新增</button>
+    </form>
+    <p id="error" data-testid="error" role="alert" hidden></p>
+
+    <nav class="filters" data-testid="filters">
+      <button type="button" data-filter="all" class="active">全部</button>
+      <button type="button" data-filter="active">未完成</button>
+      <button type="button" data-filter="completed">已完成</button>
+    </nav>
+
+    <ul id="todo-list" data-testid="todo-list"></ul>
+    <p id="empty" data-testid="empty" hidden>目前沒有待辦事項</p>
+
+    <footer>
+      <span id="summary" data-testid="summary"></span>
+      <button type="button" id="clear-completed" data-testid="clear-completed">清除已完成</button>
+    </footer>
+  </main>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
