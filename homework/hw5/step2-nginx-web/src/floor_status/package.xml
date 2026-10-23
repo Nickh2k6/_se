@@ -1,0 +1,16 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>floor_status</name>
+  <version>0.1.0</version>
+  <description>發布目前樓層 (/current_floor)，用來測試 Docker 容器與主機的 ROS 2 通訊</description>
+  <maintainer email="nick.h2k6@gmail.com">黃信惟</maintainer>
+  <license>MIT</license>
+
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>std_msgs</exec_depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>

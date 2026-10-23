@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AMR 歷史紀錄</title>
+<style>
+  :root {
+    --bg: #f4f5f7; --panel: #ffffff; --text: #1d2330; --muted: #6b7280;
+    --line: #e3e6eb; --accent: #2563eb; --ok: #15803d; --bad: #b91c1c; --warn: #b45309;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #12151b; --panel: #1b1f27; --text: #e6e8ec; --muted: #9aa1ad;
+      --line: #2a303b; --accent: #60a5fa; --ok: #4ade80; --bad: #f87171; --warn: #fbbf24;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 15px/1.5 system-ui, "Noto Sans TC", "PingFang TC", sans-serif;
+  }
+  header {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+    padding: 14px 20px; border-bottom: 1px solid var(--line); background: var(--panel);
+  }
+  h1 { font-size: 17px; margin: 0; font-weight: 600; }
+  .brand { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
+  nav { display: flex; gap: 4px; }
+  nav a { color: var(--muted); text-decoration: none; font-size: 14px; padding: 4px 10px; border-radius: 6px; }
+  nav a:hover { color: var(--text); background: var(--bg); }
+  nav a[aria-current="page"] { color: var(--text); background: var(--bg); font-weight: 600; }
+  .pills { display: flex; gap: 8px; flex-wrap: wrap; }
+  .pill {
+    display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px;
+    border-radius: 999px; border: 1px solid var(--line); font-size: 13px;
+  }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+  .pill.ok .dot { background: var(--ok); }
+  .pill.bad .dot { background: var(--bad); }
+  main { display: grid; gap: 16px; padding: 20px; max-width: 1100px; margin: 0 auto; }
+  @media (max-width: 760px) { main { padding: 16px; } }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; }
+  .card h2 { font-size: 13px; font-weight: 600; color: var(--muted); margin: 0 0 12px; letter-spacing: .02em; }
+  form { display: flex; gap: 8px; flex-wrap: wrap; }
+  input, select, button {
+    font: inherit; font-size: 14px; color: var(--text); background: var(--bg);
+    border: 1px solid var(--line); border-radius: 6px; padding: 6px 10px;
+  }
+  input[name="message"] { flex: 1 1 260px; min-width: 0; }
+  button { cursor: pointer; background: var(--accent); color: #fff; border-color: transparent; font-weight: 600; }
+  button:disabled { opacity: .5; cursor: default; }
+  .hint { color: var(--muted); font-size: 12px; margin-top: 8px; min-height: 18px; }
+  .grid2 { display: grid; gap: 16px; grid-template-columns: 1fr 1.6fr; }
+  @media (max-width: 860px) { .grid2 { grid-template-columns: 1fr; } }
+  .scroll { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { text-align: left; padding: 7px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  th { color: var(--muted); font-weight: 500; font-size: 12px; }
+  td.num { font-family: ui-monospace, monospace; font-variant-numeric: tabular-nums; }
+  td.msg { white-space: normal; min-width: 180px; }
+  .empty { color: var(--muted); text-align: center; padding: 20px; }
+  .tag { font-size: 12px; padding: 1px 8px; border-radius: 999px; border: 1px solid currentColor; }
+  .tag.info { color: var(--muted); }
+  .tag.warning { color: var(--warn); }
+  .tag.error { color: var(--bad); }
+  .arrow { color: var(--muted); margin: 0 4px; }
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">
+    <h1>跨樓層 AMR 監控</h1>
+    <nav><a href="./">即時</a><a href="history.html" aria-current="page">歷史紀錄</a></nav>
+  </div>
+  <div class="pills">
+    <span id="apiPill" class="pill"><span class="dot"></span>API / 資料庫</span>
+    <span id="rosPill" class="pill"><span class="dot"></span>API ↔ rosbridge</span>
+  </div>
+</header>
+
+<main>
+  <section class="card">
+    <h2>新增巡檢事件</h2>
+    <form id="eventForm">
+      <select name="kind" aria-label="類型">
+        <option value="info">一般</option>
+        <option value="warning">警告</option>
+        <option value="error">異常</option>
+      </select>
+      <input name="message" placeholder="例：3F 走廊燈管閃爍" maxlength="500" required aria-label="事件內容">
+      <button type="submit">記錄</button>
+    </form>
+    <div class="hint" id="formHint">會自動附上機器人目前的樓層與座標</div>
+  </section>
+
+  <div class="grid2">
+    <section class="card">
+      <h2>樓層變化</h2>
+      <div class="scroll">
+        <table>
+          <thead><tr><th>時間</th><th>樓層</th><th>位置 (x, y)</th></tr></thead>
+          <tbody id="floorRows"><tr><td colspan="3" class="empty">載入中…</td></tr></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>巡檢事件</h2>
+      <div class="scroll">
+        <table>
+          <thead><tr><th>時間</th><th>類型</th><th>樓層</th><th>內容</th></tr></thead>
+          <tbody id="eventRows"><tr><td colspan="4" class="empty">載入中…</td></tr></tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+</main>
+
+<script>
+// 呼叫的都是相對路徑 /api/...，由 Nginx 轉給 FastAPI 容器
+const $ = (id) => document.getElementById(id);
+const KIND_LABEL = { info: '一般', warning: '警告', error: '異常' };
+
+const fmtTime = (iso) => new Date(iso).toLocaleString('zh-TW', {
+  hour12: false, month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit',
+});
+const fmtXY = (x, y) => (x == null || y == null) ? '–' : `${x.toFixed(2)}, ${y.toFixed(2)}`;
+const fmtFloor = (f) => f == null ? '–' : `${f}F`;
+
+// 用 DOM API 組表格，不用 innerHTML 拼字串 —— 事件內容是使用者輸入的，
+// 直接塞進 innerHTML 會有 XSS 風險
+function cell(text, cls) {
+  const td = document.createElement('td');
+  if (cls) td.className = cls;
+  td.textContent = text;
+  return td;
+}
+
+function fillTable(tbody, rows, cols, buildRow) {
+  tbody.replaceChildren();
+  if (!rows.length) {
+    const tr = document.createElement('tr');
+    const td = cell('還沒有紀錄', 'empty');
+    td.colSpan = cols;
+    tr.append(td);
+    tbody.append(tr);
+    return;
+  }
+  for (const r of rows) tbody.append(buildRow(r));
+}
+
+function setPill(id, ok) {
+  $(id).className = 'pill ' + (ok ? 'ok' : 'bad');
+}
+
+async function getJSON(url) {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`${url} → HTTP ${res.status}`);
+  return res.json();
+}
+
+async function refresh() {
+  try {
+    const [status, floors, events] = await Promise.all([
+      getJSON('/api/status'),
+      getJSON('/api/floor-changes?limit=50'),
+      getJSON('/api/events?limit=50'),
+    ]);
+    setPill('apiPill', true);
+    setPill('rosPill', status.rosbridge_connected);
+
+    fillTable($('floorRows'), floors, 3, (r) => {
+      const tr = document.createElement('tr');
+      const floorTd = document.createElement('td');
+      floorTd.append(fmtFloor(r.from_floor));
+      const arrow = document.createElement('span');
+      arrow.className = 'arrow';
+      arrow.textContent = '→';
+      floorTd.append(arrow, fmtFloor(r.to_floor));
+      tr.append(cell(fmtTime(r.ts), 'num'), floorTd, cell(fmtXY(r.x, r.y), 'num'));
+      return tr;
+    });
+
+    fillTable($('eventRows'), events, 4, (r) => {
+      const tr = document.createElement('tr');
+      const kindTd = document.createElement('td');
+      const tag = document.createElement('span');
+      tag.className = 'tag ' + r.kind;
+      tag.textContent = KIND_LABEL[r.kind] || r.kind;
+      kindTd.append(tag);
+      tr.append(cell(fmtTime(r.ts), 'num'), kindTd, cell(fmtFloor(r.floor)), cell(r.message, 'msg'));
+      return tr;
+    });
+  } catch (err) {
+    setPill('apiPill', false);
+    setPill('rosPill', false);
+    console.error(err);
+  }
+}
+
+$('eventForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const form = e.target;
+  const btn = form.querySelector('button');
+  btn.disabled = true;
+  try {
+    const res = await fetch('/api/events', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ kind: form.kind.value, message: form.message.value.trim() }),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const ev = await res.json();
+    form.message.value = '';
+    $('formHint').textContent = `已記錄（樓層 ${fmtFloor(ev.floor)}，位置 ${fmtXY(ev.x, ev.y)}）`;
+    refresh();
+  } catch (err) {
+    $('formHint').textContent = '記錄失敗：' + err.message;
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+refresh();
+setInterval(refresh, 5000);
+</script>
+</body>
+</html>
