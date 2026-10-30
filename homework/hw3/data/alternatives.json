@@ -1,0 +1,63 @@
+{
+  "ships": [
+    {
+      "route_id": "KMXM",
+      "name": "小三通：金門（水頭）→ 廈門（五通）",
+      "from": "水頭碼頭（金門港旅運中心）",
+      "then": "抵達廈門後轉往高崎機場，搭兩岸航班飛松山／桃園／臺中／高雄",
+      "requires": "台胞證（臺灣居民來往大陸通行證）",
+      "official": "https://www.motcmpb.gov.tw/Information?SiteId=1&NodeId=543"
+    },
+    {
+      "route_id": "KMQZ",
+      "name": "小三通：金門（水頭）→ 泉州（石井）",
+      "from": "水頭碼頭（金門港旅運中心）",
+      "then": "抵達泉州後可轉往泉州晉江機場",
+      "requires": "台胞證（臺灣居民來往大陸通行證）",
+      "official": "https://www.motcmpb.gov.tw/Information?SiteId=1&NodeId=543"
+    }
+  ],
+  "buses": [
+    {
+      "id": "nqu_city",
+      "title": "金門大學 → 金城車站",
+      "purpose": "從學校出發，到金城站轉車",
+      "from_stop": "金門大學",
+      "routes": [
+        "5往金城",
+        "5A往金城"
+      ]
+    },
+    {
+      "id": "city_airport",
+      "title": "金城車站 → 尚義機場（民航站）",
+      "purpose": "去機場",
+      "from_stop": "金城站",
+      "routes": [
+        "3往山外",
+        "藍1往山外"
+      ]
+    },
+    {
+      "id": "shanwai_airport",
+      "title": "山外車站 → 尚義機場（民航站）",
+      "purpose": "從山外去機場",
+      "from_stop": "山外站",
+      "routes": [
+        "3往金城",
+        "藍1往金城"
+      ]
+    },
+    {
+      "id": "city_pier",
+      "title": "金城車站 → 水頭碼頭（旅服中心）",
+      "purpose": "改搭小三通",
+      "from_stop": "金城站",
+      "routes": [
+        "7",
+        "7A",
+        "7B"
+      ]
+    }
+  ]
+}

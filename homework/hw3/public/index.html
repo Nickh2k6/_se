@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>金門返台交通助手</title>
+<style>
+  :root {
+    --bg: #f3f5f8; --card: #fff; --text: #1d2530; --muted: #6b7684; --line: #e3e7ec;
+    --green: #1f9d55; --yellow: #d69e00; --orange: #e0681a; --red: #d63131; --blue: #2563eb;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: -apple-system, "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif;
+         background: var(--bg); color: var(--text); line-height: 1.55; }
+  header { background: #12324f; color: #fff; padding: 14px 20px; display: flex; align-items: center;
+           gap: 12px; flex-wrap: wrap; }
+  header h1 { font-size: 20px; margin: 0; flex: 1; }
+  header .sub { font-size: 13px; opacity: .8; }
+  header button, header a.btn { background: rgba(255,255,255,.15); color: #fff; border: 1px solid rgba(255,255,255,.3);
+           border-radius: 6px; padding: 6px 12px; font-size: 14px; cursor: pointer; text-decoration: none; }
+  header a.btn.on { background: #f5b301; color: #222; border-color: #f5b301; }
+  main { max-width: 1100px; margin: 0 auto; padding: 18px; display: grid; gap: 16px; }
+  .card { background: var(--card); border-radius: 12px; padding: 16px 18px; box-shadow: 0 1px 3px rgba(0,0,0,.06); }
+  .card h2 { font-size: 17px; margin: 0 0 12px; }
+  .grid2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; }
+  main > *, .grid2 > * { min-width: 0; }
+  @media (max-width: 760px) { .grid2 { grid-template-columns: 1fr; } }
+  .muted { color: var(--muted); font-size: 13px; }
+
+  #risk { color: #fff; display: flex; gap: 20px; align-items: flex-start; flex-wrap: wrap; }
+  #risk.green { background: var(--green); } #risk.yellow { background: var(--yellow); }
+  #risk.orange { background: var(--orange); } #risk.red { background: var(--red); }
+  #risk .light { font-size: 46px; font-weight: 800; min-width: 170px; line-height: 1.1; }
+  #risk .light small { display: block; font-size: 14px; font-weight: 400; opacity: .9; }
+  #risk ul { margin: 4px 0; padding-left: 20px; }
+  #risk .col { flex: 1; min-width: 240px; }
+  #risk h3 { margin: 0 0 4px; font-size: 15px; opacity: .9; }
+
+  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+  .stat { background: var(--bg); border-radius: 8px; padding: 10px; text-align: center; }
+  .stat b { display: block; font-size: 24px; }
+  .stat.bad b { color: var(--red); } .stat.warn b { color: var(--orange); }
+
+  .wx { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 12px; }
+  .wx div { background: var(--bg); border-radius: 8px; padding: 8px; text-align: center; }
+  .wx b { display: block; font-size: 20px; }
+  .alert { background: #fff4e5; border-left: 4px solid var(--orange); padding: 8px 12px; border-radius: 6px; margin: 8px 0; font-size: 14px; }
+  .strip { display: flex; gap: 3px; overflow-x: auto; padding-bottom: 4px; }
+  .slot { min-width: 42px; text-align: center; font-size: 12px; border-radius: 6px; padding: 4px 2px; background: var(--bg); }
+  .slot .bar { height: 8px; border-radius: 4px; margin: 3px 0; }
+  .fog-high .bar { background: var(--red); } .fog-medium .bar { background: var(--yellow); }
+  .fog-low .bar { background: #cfe8d6; } .fog-unknown .bar { background: #ddd; }
+
+  .tabs { display: flex; gap: 6px; margin-bottom: 10px; flex-wrap: wrap; align-items: center; }
+  .tabs button { border: 1px solid var(--line); background: #fff; border-radius: 6px; padding: 5px 12px; cursor: pointer; }
+  .tabs button.on { background: #12324f; color: #fff; border-color: #12324f; }
+  .tabs select, .tabs input { border: 1px solid var(--line); border-radius: 6px; padding: 5px 8px; font-size: 14px; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { padding: 7px 6px; border-bottom: 1px solid var(--line); text-align: left; }
+  th { color: var(--muted); font-weight: 500; font-size: 13px; }
+  tr.past td { color: #9aa3ad; }
+  .badge { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 12px; font-weight: 600; }
+  .s-cancelled { background: #fde2e2; color: var(--red); } .s-delayed { background: #fdebd8; color: var(--orange); }
+  .s-done { background: #e8ecf0; color: #5b6673; } .s-ontime { background: #dcf3e4; color: var(--green); }
+  .s-changed { background: #e0eaff; color: var(--blue); }
+  .star { background: none; border: none; font-size: 18px; cursor: pointer; color: #c4cbd3; padding: 0; }
+  .star.on { color: #f5b301; }
+
+  .track { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip { border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; min-width: 170px; }
+  .chip b { font-size: 16px; }
+  .alt h3 { font-size: 15px; margin: 0 0 4px; }
+  .alt .item { border-top: 1px solid var(--line); padding: 10px 0; }
+  .alt .item:first-of-type { border-top: none; padding-top: 0; }
+  .eta { display: inline-block; margin: 3px 6px 0 0; background: var(--bg); border-radius: 6px; padding: 2px 8px; font-size: 13px; }
+  .eta b { color: var(--blue); }
+  .eta small { color: var(--muted); }
+  .eta.gone { opacity: .45; text-decoration: line-through; }
+  .eta.next { background: #e0eaff; outline: 1px solid var(--blue); }
+  details { margin-top: 4px; }
+  #banner { display: none; background: #fff4e5; color: #8a4b00; padding: 8px 18px; font-size: 13px; }
+  #toast { position: fixed; right: 16px; bottom: 16px; background: #12324f; color: #fff; padding: 12px 16px;
+           border-radius: 8px; display: none; max-width: 320px; box-shadow: 0 4px 12px rgba(0,0,0,.25); }
+  footer { text-align: center; padding: 10px 0 24px; }
+</style>
+</head>
+<body>
+<header>
+  <div style="flex:1">
+    <h1>✈️ 金門返台交通助手</h1>
+    <div class="sub" id="updated">載入中…</div>
+  </div>
+  <button id="notifyBtn" title="追蹤的航班狀態改變時通知你">🔔 開啟通知</button>
+  <button id="refreshBtn">↻ 重新整理</button>
+  <a class="btn" id="demoBtn" href="?demo=1">模擬霧季停飛</a>
+</header>
+<div id="banner"></div>
+
+<main>
+  <section class="card" id="risk"><div class="light">…</div></section>
+
+  <section class="card">
+    <h2>今日金門離境航班概況</h2>
+    <div class="stats" id="stats"></div>
+  </section>
+
+  <section class="card" id="trackCard" style="display:none">
+    <h2>⭐ 我追蹤的航班</h2>
+    <div class="track" id="track"></div>
+  </section>
+
+  <div class="grid2">
+    <section class="card">
+      <h2>🌫️ 霧況與天氣</h2>
+      <div id="wx"></div>
+    </section>
+    <section class="card alt">
+      <h2>🧭 替代方案與交通接駁</h2>
+      <div id="alt">載入中…</div>
+    </section>
+  </div>
+
+  <section class="card">
+    <h2>航班動態</h2>
+    <div class="tabs">
+      <button data-kind="departures" class="on">離境（金門出發）</button>
+      <button data-kind="arrivals">抵達（飛往金門）</button>
+      <select id="dest"><option value="">全部航點</option></select>
+      <input id="search" placeholder="搜尋航班號，例如 AE1262" size="18">
+      <label class="muted"><input type="checkbox" id="hidePast"> 隱藏已起飛</label>
+    </div>
+    <table>
+      <thead><tr><th></th><th>預定</th><th>航班</th><th>航空公司</th><th id="apHead">目的地</th><th>實際／預估</th><th>登機門</th><th>狀態</th></tr></thead>
+      <tbody id="flights"></tbody>
+    </table>
+  </section>
+
+  <footer class="muted">
+    資料來源：交通部 TDX 運輸資料流通服務（航班、公車、航線）、中央氣象署開放資料（觀測、濃霧特報、鄉鎮預報）。<br>
+    起霧推估是依露點差、濕度、風速的經驗判斷，僅供參考；實際起降以航空公司公告為準。
+  </footer>
+</main>
+<div id="toast"></div>
+
+<script>
+const DEMO = new URLSearchParams(location.search).get("demo") === "1";
+const REFRESH_MS = 120 * 1000;
+const STATUS_TEXT = { cancelled: "取消", delayed: "延誤", done: "已起飛", ontime: "準時", changed: "時間更改" };
+let state = null, kind = "departures";
+let tracked = JSON.parse(localStorage.getItem("tracked") || "[]");
+let lastStatus = JSON.parse(localStorage.getItem("lastStatus") || "{}");
+
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const hm = (iso) => iso ? iso.slice(11, 16) : "";
+const statusBadge = (f) => `<span class="badge s-${f.status}">${esc(f.remark || STATUS_TEXT[f.status])}</span>`;
+
+if (DEMO) {
+  $("demoBtn").textContent = "回到即時資料";
+  $("demoBtn").href = location.pathname;
+  $("demoBtn").classList.add("on");
+}
+
+async function load() {
+  const q = DEMO ? "?demo=1" : "";
+  fetch("/api/alternatives" + q).then((r) => r.json()).then(renderAlt).catch(() => {});
+  try {
+    const res = await fetch("/api/status" + q);
+    state = await res.json();
+    if (state.error) throw new Error(state.error);
+    render();
+    checkTracked();
+  } catch (e) {
+    showBanner("無法取得資料：" + e.message);
+  }
+}
+
+function showBanner(msg) {
+  $("banner").style.display = msg ? "block" : "none";
+  $("banner").textContent = msg || "";
+}
+
+function render() {
+  const a = state.analysis;
+  $("updated").textContent = (DEMO ? "【模擬模式】" : "") + "更新時間 " + new Date(state.now).toLocaleTimeString("zh-TW", { hour12: false });
+  const names = { departures: "航班", arrivals: "抵達航班", obs: "天氣觀測", fog_alerts: "濃霧特報", forecast: "預報" };
+  const errs = Object.entries(state.errors || {}).map(([k, v]) => `${names[k] || k}：${v}`);
+  showBanner(errs.length ? "⚠️ 部分資料暫時無法更新，畫面顯示的是最後一次取得的資料。（" + errs.join("；") + "）" : "");
+
+  $("risk").className = "card " + a.level;
+  $("risk").innerHTML = `
+    <div class="light">${esc(a.title)}<small>停飛風險燈號</small></div>
+    <div class="col"><h3>判斷依據</h3><ul>${a.reasons.map((r) => `<li>${esc(r)}</li>`).join("")}</ul></div>
+    <div class="col"><h3>建議</h3><ul>${a.advice.map((r) => `<li>${esc(r)}</li>`).join("")}</ul></div>`;
+
+  const s = a.stats;
+  $("stats").innerHTML = `
+    <div class="stat"><b>${s.departures}</b>今日離境班次</div>
+    <div class="stat"><b>${s.done}</b>已起飛</div>
+    <div class="stat ${s.delayed ? "warn" : ""}"><b>${s.delayed}</b>延誤</div>
+    <div class="stat ${s.cancelled ? "bad" : ""}"><b>${s.cancelled}</b>取消</div>`;
+
+  renderWeather();
+  renderDestOptions();
+  renderFlights();
+  renderTracked();
+}
+
+function renderWeather() {
+  const o = state.obs, f = state.forecast;
+  let h = "";
+  if (o) {
+    const vis = o.visibility_km;
+    const visColor = vis == null ? "" : vis < 1.6 ? "var(--red)" : vis < 5 ? "var(--orange)" : "var(--green)";
+    h += `<div class="wx">
+      <div><b style="color:${visColor}">${esc(o.visibility_desc)}</b>能見度（公里）</div>
+      <div><b>${esc(o.weather)}</b>天氣</div>
+      <div><b>${esc(o.temp)}°</b>氣溫</div>
+      <div><b>${esc(o.humidity)}%</b>濕度</div></div>
+      <div class="muted">氣象署${esc(o.station)}站 ${hm(o.time)} 觀測。尚義機場能見度大約低於 1.6 公里時，起降容易受影響。</div>`;
+  } else {
+    h += `<p class="muted">暫無觀測資料</p>`;
+  }
+  for (const al of state.fog_alerts || []) {
+    h += `<div class="alert">⚠️ <b>${esc(al.headline)}</b>（${hm(al.effective)}–${hm(al.expires)}）<br>${esc(al.description)}</div>`;
+  }
+  if (f && f.slots.length) {
+    h += `<p style="margin:12px 0 4px"><b>未來起霧推估</b> <span class="muted">（${esc(f.town)}，紅＝容易起霧）</span></p><div class="strip">`;
+    let lastDay = "";
+    for (const s of f.slots) {
+      const day = s.time.slice(5, 10).replace("-", "/");
+      h += `<div class="slot fog-${s.fog}" title="${esc(s.weather)}，${s.temp}°C，露點 ${s.dew}°C，濕度 ${s.humidity}%">
+        ${day !== lastDay ? `<div class="muted">${day}</div>` : `<div class="muted">&nbsp;</div>`}
+        <div>${hm(s.time)}</div><div class="bar"></div><div>${esc(s.humidity)}%</div></div>`;
+      lastDay = day;
+    }
+    h += `</div>`;
+  }
+  $("wx").innerHTML = h;
+}
+
+function renderDestOptions() {
+  const sel = $("dest"), cur = sel.value;
+  const aps = [...new Map(state[kind].map((f) => [f.airport, f.airport_name])).entries()];
+  sel.innerHTML = `<option value="">全部航點</option>` + aps.map(([c, n]) => `<option value="${esc(c)}">${esc(n)}</option>`).join("");
+  sel.value = aps.some(([c]) => c === cur) ? cur : "";
+  $("apHead").textContent = kind === "departures" ? "目的地" : "出發地";
+}
+
+function renderFlights() {
+  const today = state.now.slice(0, 10);
+  const dest = $("dest").value, q = $("search").value.trim().toUpperCase(), hidePast = $("hidePast").checked;
+  const rows = state[kind].filter((f) =>
+    (!dest || f.airport === dest) && (!q || f.flight.includes(q)) && !(hidePast && f.status === "done"));
+  $("flights").innerHTML = rows.map((f) => `
+    <tr class="${f.status === "done" ? "past" : ""}">
+      <td><button class="star ${tracked.includes(f.flight) ? "on" : ""}" data-flight="${esc(f.flight)}" title="追蹤這班">★</button></td>
+      <td>${f.date !== today ? esc(f.date.slice(5)) + " " : ""}${esc(f.scheduled)}</td>
+      <td><b>${esc(f.flight)}</b></td><td>${esc(f.airline)}</td><td>${esc(f.airport_name)}</td>
+      <td>${esc(f.actual || f.estimated)}</td><td>${esc(f.gate)}</td><td>${statusBadge(f)}</td>
+    </tr>`).join("") || `<tr><td colspan="8" class="muted">沒有符合的航班</td></tr>`;
+}
+
+function findFlight(no) {
+  return state.departures.find((f) => f.flight === no) || state.arrivals.find((f) => f.flight === no);
+}
+
+function renderTracked() {
+  $("trackCard").style.display = tracked.length ? "" : "none";
+  $("track").innerHTML = tracked.map((no) => {
+    const f = findFlight(no);
+    if (!f) return `<div class="chip"><b>${esc(no)}</b><div class="muted">今天的航班表裡找不到這班</div></div>`;
+    const route = state.departures.includes(f) ? `金門 → ${f.airport_name}` : `${f.airport_name} → 金門`;
+    return `<div class="chip"><b>${esc(no)}</b> ${statusBadge(f)}<div class="muted">${esc(route)}　預定 ${esc(f.scheduled)}${f.actual ? "　實際 " + esc(f.actual) : ""}</div></div>`;
+  }).join("");
+}
+
+function checkTracked() {
+  // 追蹤的航班狀態改變時通知（模擬模式不影響真實記錄）
+  if (DEMO) return;
+  const changes = [];
+  for (const no of tracked) {
+    const f = findFlight(no);
+    if (!f) continue;
+    const prev = lastStatus[no];
+    if (prev && prev !== f.remark) changes.push(`${no}：${prev} → ${f.remark}`);
+    lastStatus[no] = f.remark;
+  }
+  localStorage.setItem("lastStatus", JSON.stringify(lastStatus));
+  if (changes.length) notify("航班狀態更新", changes.join("\n"));
+}
+
+function notify(title, body) {
+  $("toast").innerText = title + "\n" + body;
+  $("toast").style.display = "block";
+  setTimeout(() => ($("toast").style.display = "none"), 8000);
+  if ("Notification" in window && Notification.permission === "granted") new Notification(title, { body });
+}
+
+function renderAlt(alt) {
+  let h = `<h3>🚢 小三通（需台胞證）</h3>`;
+  const nowHM = new Date().toTimeString().slice(0, 5);
+  for (const s of alt.ships) {
+    const next = s.departures.find((d) => d.time >= nowHM);
+    const times = s.departures.map((d) => {
+      const cls = d.time < nowHM ? "eta gone" : d === next ? "eta next" : "eta";
+      return `<span class="${cls}" title="${esc(d.ship)}">${esc(d.time)} <small>${esc(d.ship)}</small></span>`;
+    }).join("");
+    const src = s.pdf ? `<a href="${esc(s.pdf)}" target="_blank" rel="noopener">航港局船班表 PDF</a>`
+      : `<a href="${esc(s.official)}" target="_blank" rel="noopener">航港局公告</a>`;
+    h += `<div class="item"><b>${esc(s.name)}</b>
+      <div class="muted">${esc(s.from)} 出發。${esc(s.then)}</div>
+      ${s.tdx_price ? `<div class="muted">票價：${esc(s.tdx_price)}</div>` : ""}
+      <div>${s.departures.length
+        ? `今日班次${next ? `（下一班 <b>${esc(next.time)}</b>）` : "（今天已無班次）"}：<br>${times}`
+        : `<span class="muted">${s.schedule_loaded ? "今天沒有班次" : "尚未取得本月船班表"}，請見${src}</span>`}</div>
+      ${s.phones.length ? `<details class="muted"><summary>金門訂位電話</summary>${s.phones.map((p) =>
+        `${esc(p.company)}：<a href="tel:${esc(p.phone.split(/[、~]/)[0])}">${esc(p.phone)}</a>`).join("<br>")}</details>` : ""}
+      ${s.departures.length ? `<div class="muted">來源：${src}</div>` : ""}</div>`;
+  }
+  h += `<h3 style="margin-top:14px">🚌 公車即時到站</h3>`;
+  for (const b of alt.buses) {
+    const etas = b.eta.length ? b.eta.map((e) =>
+      `<span class="eta">${esc(e.route)}：${e.minutes != null ? (e.minutes <= 1 ? "<b>即將進站</b>" : `<b>${e.minutes}</b> 分`) : esc(e.status) + (e.next_bus ? " " + esc(e.next_bus) : "")}</span>`).join("")
+      : `<span class="muted">目前沒有到站資訊</span>`;
+    h += `<div class="item"><b>${esc(b.title)}</b> <span class="muted">${esc(b.purpose)}</span><div>${etas}</div></div>`;
+  }
+  if (alt.errors && Object.keys(alt.errors).length) h += `<p class="muted">部分資料暫時無法取得：${esc(Object.values(alt.errors).join("；"))}</p>`;
+  $("alt").innerHTML = h;
+}
+
+document.querySelectorAll(".tabs button[data-kind]").forEach((btn) => btn.addEventListener("click", () => {
+  document.querySelectorAll(".tabs button[data-kind]").forEach((b) => b.classList.toggle("on", b === btn));
+  kind = btn.dataset.kind;
+  renderDestOptions();
+  renderFlights();
+}));
+["dest", "search", "hidePast"].forEach((id) => $(id).addEventListener("input", renderFlights));
+$("flights").addEventListener("click", (e) => {
+  const no = e.target.dataset.flight;
+  if (!no) return;
+  tracked = tracked.includes(no) ? tracked.filter((x) => x !== no) : [...tracked, no];
+  localStorage.setItem("tracked", JSON.stringify(tracked));
+  const f = findFlight(no);
+  if (f && !DEMO) { lastStatus[no] = f.remark; localStorage.setItem("lastStatus", JSON.stringify(lastStatus)); }
+  renderFlights();
+  renderTracked();
+});
+$("refreshBtn").addEventListener("click", load);
+$("notifyBtn").addEventListener("click", async () => {
+  if (!("Notification" in window)) return notify("無法通知", "這個瀏覽器不支援通知");
+  const p = await Notification.requestPermission();
+  notify(p === "granted" ? "通知已開啟" : "通知未開啟", p === "granted" ? "追蹤的航班狀態改變時會通知你（頁面需保持開啟）" : "請到瀏覽器設定允許通知");
+});
+
+load();
+setInterval(load, REFRESH_MS);
+</script>
+</body>
+</html>
