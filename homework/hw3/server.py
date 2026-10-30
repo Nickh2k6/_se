@@ -5,7 +5,6 @@
 - 管理 TDX 的 OAuth token，代理 TDX（航班、公車、船班航線）與中央氣象署 API
 - 快取（記憶體 + cache/ 目錄），避免撞到 TDX 的限流；API 失敗時回傳舊資料
 - 綜合航班狀態、能見度、濃霧特報、預報，算出停飛風險燈號
-- 模擬模式（?demo=1）：重播 data/demo/ 裡的霧季停飛資料
 
 用法：python3 server.py [port]
 """
@@ -341,44 +340,41 @@ def summarize_forecast(records, now):
     return {"town": loc["LocationName"], "slots": slots[:24]}
 
 
-def analyze(dep, arr, obs, alerts, fcst, now):
+def analyze(dep, arr, obs, alerts, now):
+    """停飛風險燈號。只依官方資料觸發：濃霧特報、能見度、航班取消。
+
+    起霧推估、延誤不列入警告（推估只畫在時間軸上參考，延誤只顯示在統計）。
+    """
     today = now.strftime("%Y-%m-%d")
     todays = [f for f in dep if f["date"] == today]
     count = lambda s: sum(1 for f in todays if f["status"] == s)
-    cancelled, delayed = count("cancelled"), count("delayed")
+    cancelled = count("cancelled")
     arr_cancelled = sum(1 for f in arr if f["date"] == today and f["status"] == "cancelled")
     vis = obs.get("visibility_km") if obs else None
-    next24 = [s for s in (fcst or {}).get("slots", [])
-              if datetime.fromisoformat(s["time"]) <= now + timedelta(hours=24)]
-    fog_slots = [s for s in next24 if s["fog"] == "high"]
+    low_vis, poor_vis = vis is not None and vis < 1.6, vis is not None and vis < 5
 
     reasons = []
+    if alerts:
+        reasons.append("氣象署對金門發布濃霧特報")
+    if poor_vis:
+        reasons.append(f"金門目前能見度 {obs['visibility_desc']} 公里" + ("，低於起降標準參考值 1.6 公里" if low_vis else ""))
     if cancelled:
         reasons.append(f"今天已有 {cancelled} 班離境航班取消")
     if arr_cancelled:
         reasons.append(f"{arr_cancelled} 班飛往金門的航班取消（飛機沒來，回程也會受影響）")
-    if delayed:
-        reasons.append(f"{delayed} 班航班延誤")
-    if vis is not None and vis < 5:
-        reasons.append(f"金門目前能見度 {obs['visibility_desc']} 公里")
-    if alerts:
-        reasons.append("氣象署對金門發布濃霧特報")
-    if fog_slots:
-        reasons.append(f"未來 24 小時有 {len(fog_slots)} 個時段推估容易起霧（最早 {fog_slots[0]['time'][5:16].replace('T', ' ')}）")
 
-    if cancelled >= 2 or (cancelled and vis is not None and vis < 1.6):
+    if cancelled >= 2 or (cancelled and low_vis):
         level, title = "red", "停飛中"
-    elif (vis is not None and vis < 1.6) or alerts or delayed >= 3 or cancelled or arr_cancelled:
+    elif low_vis or alerts or cancelled or arr_cancelled:
         level, title = "orange", "可能停飛"
-    elif fog_slots or delayed or (vis is not None and vis < 5):
+    elif poor_vis:
         level, title = "yellow", "請留意"
     else:
         level, title = "green", "正常"
 
     advice = {
-        "green": ["航班大致正常，照原計畫出發即可。"],
-        "yellow": ["可能起霧，若行程彈性，可考慮改搭中午前後的航班（霧通常在早晚較濃）。",
-                   "出發前再確認一次航班狀態。"],
+        "green": ["目前沒有濃霧特報、能見度良好、也沒有航班取消，照原計畫出發即可。"],
+        "yellow": ["能見度偏低，出發前再確認一次航班狀態。"],
         "orange": ["盡快聯繫航空公司確認，或先登記後面航班的候補。",
                    "若有台胞證，可評估小三通到廈門再飛臺灣的替代路線。",
                    "隨時留意下方航班狀態變化。"],
@@ -386,28 +382,14 @@ def analyze(dep, arr, obs, alerts, fcst, now):
                 "趕時間的話可考慮小三通（水頭碼頭 → 廈門五通）再從廈門轉機飛臺灣，需台胞證。",
                 "下方有前往水頭碼頭、機場的公車資訊。"],
     }[level]
-    return {"level": level, "title": title, "reasons": reasons or ["目前沒有異常狀況"],
+    if not reasons:  # 沒抓到的資料要說「無法確認」，不能當成正常
+        reasons = ["沒有濃霧特報" if alerts is not None else "無法取得濃霧特報，無法確認",
+                   "能見度正常" if vis is not None else "無法取得能見度，無法確認",
+                   "沒有航班取消" if dep else "無法取得航班資料，無法確認"]
+    return {"level": level, "title": title, "reasons": reasons,
             "advice": advice,
-            "stats": {"departures": len(todays), "cancelled": cancelled, "delayed": delayed,
+            "stats": {"departures": len(todays), "cancelled": cancelled, "delayed": count("delayed"),
                       "done": count("done"), "arr_cancelled": arr_cancelled}}
-
-
-# ---------- 模擬模式 ----------
-
-def demo_data(now):
-    """讀取 data/demo/，把日期換成今天，讓霧季停飛情境隨時可以展示。"""
-    with open(os.path.join(DATA_DIR, "demo", "fog_day.json"), encoding="utf-8") as f:
-        d = json.load(f)
-    today = now.strftime("%Y-%m-%d")
-    for f in d["departures"] + d["arrivals"]:
-        f["date"] = today
-    d["obs"]["time"] = now.replace(minute=now.minute // 10 * 10, second=0, microsecond=0).isoformat()
-    d["fog_alerts"][0]["effective"] = now.replace(hour=5, minute=30, second=0, microsecond=0).isoformat()
-    d["fog_alerts"][0]["expires"] = (now + timedelta(hours=4)).replace(second=0, microsecond=0).isoformat()
-    base = now.replace(minute=0, second=0, microsecond=0)
-    for i, s in enumerate(d["forecast"]["slots"]):
-        s["time"] = (base + timedelta(hours=i)).isoformat()
-    return d
 
 
 # ---------- API ----------
@@ -420,15 +402,8 @@ def safe(name, fn, errors):
         return None, None
 
 
-def api_status(demo):
+def api_status():
     now = datetime.now(TW)
-    if demo:
-        d = demo_data(now)
-        meta = {"demo": True}
-        analysis = analyze(d["departures"], d["arrivals"], d["obs"], d["fog_alerts"], d["forecast"], now)
-        return {"now": now.isoformat(), "analysis": analysis, "departures": d["departures"],
-                "arrivals": d["arrivals"], "obs": d["obs"], "fog_alerts": d["fog_alerts"],
-                "forecast": d["forecast"], "meta": meta, "errors": {}}
 
     errors, meta = {}, {}
     dep, meta["departures"] = get_flights("dep", now, errors)
@@ -441,7 +416,7 @@ def api_status(demo):
         "fcst", TTL["fcst"], lambda: cwa("F-D0047-085", LocationName=AIRPORT_TOWN)), errors)
 
     obs = summarize_obs(obs) if obs else None
-    alerts = kinmen_fog_alerts(fog, now) if fog else []
+    alerts = kinmen_fog_alerts(fog, now) if fog else None  # None＝抓不到，[]＝確定沒有
     fcst = summarize_forecast(fc, now) if fc else None
     for k in list(errors):
         if meta.get(k) is None:
@@ -449,7 +424,7 @@ def api_status(demo):
     for k, m in meta.items():  # 有舊資料可用時，把錯誤一併告訴前端
         if m and m.get("error"):
             errors[k] = m["error"]
-    return {"now": now.isoformat(), "analysis": analyze(dep, arr, obs, alerts, fcst, now),
+    return {"now": now.isoformat(), "analysis": analyze(dep, arr, obs, alerts, now),
             "departures": dep, "arrivals": arr, "obs": obs, "fog_alerts": alerts,
             "forecast": fcst, "meta": meta, "errors": errors}
 
@@ -531,13 +506,11 @@ class Handler(SimpleHTTPRequestHandler):
 
     def do_GET(self):
         url = urllib.parse.urlparse(self.path)
-        q = urllib.parse.parse_qs(url.query)
-        demo = q.get("demo", ["0"])[0] == "1"
         try:
             if url.path == "/api/status":
-                return self.send_json(api_status(demo))
+                return self.send_json(api_status())
             if url.path == "/api/alternatives":
-                return self.send_json(api_alternatives() if not demo else demo_alternatives())
+                return self.send_json(api_alternatives())
         except Exception as e:
             return self.send_json({"error": str(e)}, 500)
         return super().do_GET()
@@ -545,17 +518,6 @@ class Handler(SimpleHTTPRequestHandler):
     def log_message(self, fmt, *args):
         if args and "/api/" in str(args[0]):
             sys.stderr.write("%s %s\n" % (self.log_date_time_string(), fmt % args))
-
-
-def demo_alternatives():
-    alt = load_alternatives()
-    add_ship_schedules(alt, datetime.now(TW))
-    with open(os.path.join(DATA_DIR, "demo", "fog_day.json"), encoding="utf-8") as f:
-        demo_eta = json.load(f)["bus_eta"]
-    for b in alt["buses"]:
-        b["eta"] = demo_eta.get(b["id"], [])
-    alt["errors"] = {}
-    return alt
 
 
 def ship_updater():
@@ -576,9 +538,9 @@ def main():
     load_env()
     missing = [k for k in ("TDX_CLIENT_ID", "TDX_CLIENT_SECRET", "CWA_API_KEY") if not os.environ.get(k)]
     if missing:
-        print("缺少設定：" + "、".join(missing) + "，請參考 .env.example 建立 .env（模擬模式仍可使用）")
+        print("缺少設定：" + "、".join(missing) + "，請參考 .env.example 建立 .env")
     port = int(sys.argv[1]) if len(sys.argv) > 1 else 8000
-    print(f"金門返台交通助手：http://localhost:{port}/   （模擬模式：http://localhost:{port}/?demo=1）")
+    print(f"金門返台交通助手：http://localhost:{port}/")
     threading.Thread(target=ship_updater, daemon=True).start()
     Server(("", port), Handler).serve_forever()
 

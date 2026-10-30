@@ -16,9 +16,8 @@
            gap: 12px; flex-wrap: wrap; }
   header h1 { font-size: 20px; margin: 0; flex: 1; }
   header .sub { font-size: 13px; opacity: .8; }
-  header button, header a.btn { background: rgba(255,255,255,.15); color: #fff; border: 1px solid rgba(255,255,255,.3);
+  header button { background: rgba(255,255,255,.15); color: #fff; border: 1px solid rgba(255,255,255,.3);
            border-radius: 6px; padding: 6px 12px; font-size: 14px; cursor: pointer; text-decoration: none; }
-  header a.btn.on { background: #f5b301; color: #222; border-color: #f5b301; }
   main { max-width: 1100px; margin: 0 auto; padding: 18px; display: grid; gap: 16px; }
   .card { background: var(--card); border-radius: 12px; padding: 16px 18px; box-shadow: 0 1px 3px rgba(0,0,0,.06); }
   .card h2 { font-size: 17px; margin: 0 0 12px; }
@@ -95,7 +94,6 @@
   </div>
   <button id="notifyBtn" title="追蹤的航班狀態改變時通知你">🔔 開啟通知</button>
   <button id="refreshBtn">↻ 重新整理</button>
-  <a class="btn" id="demoBtn" href="?demo=1">模擬霧季停飛</a>
 </header>
 <div id="banner"></div>
 
@@ -146,7 +144,6 @@
 <div id="toast"></div>
 
 <script>
-const DEMO = new URLSearchParams(location.search).get("demo") === "1";
 const REFRESH_MS = 120 * 1000;
 const STATUS_TEXT = { cancelled: "取消", delayed: "延誤", done: "已起飛", ontime: "準時", changed: "時間更改", boarding: "安檢中" };
 let state = null, kind = "departures";
@@ -158,17 +155,11 @@ const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "
 const hm = (iso) => iso ? iso.slice(11, 16) : "";
 const statusBadge = (f) => `<span class="badge s-${f.status}">${esc(f.label || f.remark || STATUS_TEXT[f.status])}</span>`;
 
-if (DEMO) {
-  $("demoBtn").textContent = "回到即時資料";
-  $("demoBtn").href = location.pathname;
-  $("demoBtn").classList.add("on");
-}
 
 async function load() {
-  const q = DEMO ? "?demo=1" : "";
-  fetch("/api/alternatives" + q).then((r) => r.json()).then(renderAlt).catch(() => {});
+  fetch("/api/alternatives").then((r) => r.json()).then(renderAlt).catch(() => {});
   try {
-    const res = await fetch("/api/status" + q);
+    const res = await fetch("/api/status");
     state = await res.json();
     if (state.error) throw new Error(state.error);
     render();
@@ -185,7 +176,7 @@ function showBanner(msg) {
 
 function render() {
   const a = state.analysis;
-  $("updated").textContent = (DEMO ? "【模擬模式】" : "") + "更新時間 " + new Date(state.now).toLocaleTimeString("zh-TW", { hour12: false });
+  $("updated").textContent = "更新時間 " + new Date(state.now).toLocaleTimeString("zh-TW", { hour12: false });
   const names = { departures: "航班", arrivals: "抵達航班", obs: "天氣觀測", fog_alerts: "濃霧特報", forecast: "預報" };
   const errs = Object.entries(state.errors || {}).map(([k, v]) => `${names[k] || k}：${v}`);
   showBanner(errs.length ? "⚠️ 部分資料暫時無法更新，畫面顯示的是最後一次取得的資料。（" + errs.join("；") + "）" : "");
@@ -226,7 +217,7 @@ function renderWeather() {
   }
   // 濃霧特報：有抓到才警告；確定沒有就明說沒有；抓不到則說明無法確認（不能當成沒有）
   const fogMeta = (state.meta || {}).fog_alerts;
-  if (!DEMO && !fogMeta) {
+  if (!fogMeta) {
     h += `<div class="alert info">❔ 無法取得氣象署濃霧特報，目前無法確認是否有特報。</div>`;
   } else if (state.fog_alerts && state.fog_alerts.length) {
     for (const al of state.fog_alerts) {
@@ -236,7 +227,7 @@ function renderWeather() {
     h += `<div class="alert ok">✅ 目前沒有對金門發布的濃霧特報。</div>`;
   }
   if (f && f.slots.length) {
-    h += `<p style="margin:12px 0 4px"><b>未來起霧推估</b> <span class="muted">（${esc(f.town)}，紅＝容易起霧）</span></p><div class="strip">`;
+    h += `<p style="margin:12px 0 4px"><b>未來起霧推估</b> <span class="muted">（${esc(f.town)}，紅＝容易起霧；自行推估，僅供參考，不列入警告）</span></p><div class="strip">`;
     let lastDay = "";
     for (const s of f.slots) {
       const day = s.time.slice(5, 10).replace("-", "/");
@@ -295,8 +286,7 @@ function renderTracked() {
 }
 
 function checkTracked() {
-  // 追蹤的航班狀態改變時通知（模擬模式不影響真實記錄）
-  if (DEMO) return;
+  // 追蹤的航班狀態改變時通知
   const changes = [];
   for (const no of tracked) {
     const f = findFlight(no);
@@ -361,7 +351,7 @@ $("flights").addEventListener("click", (e) => {
   tracked = tracked.includes(no) ? tracked.filter((x) => x !== no) : [...tracked, no];
   localStorage.setItem("tracked", JSON.stringify(tracked));
   const f = findFlight(no);
-  if (f && !DEMO) { lastStatus[no] = f.remark; localStorage.setItem("lastStatus", JSON.stringify(lastStatus)); }
+  if (f) { lastStatus[no] = f.remark; localStorage.setItem("lastStatus", JSON.stringify(lastStatus)); }
   renderFlights();
   renderTracked();
 });
