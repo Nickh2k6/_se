@@ -45,6 +45,8 @@
   .wx div { background: var(--bg); border-radius: 8px; padding: 8px; text-align: center; }
   .wx b { display: block; font-size: 20px; }
   .alert { background: #fff4e5; border-left: 4px solid var(--orange); padding: 8px 12px; border-radius: 6px; margin: 8px 0; font-size: 14px; }
+  .alert.ok { background: #e9f7ee; border-color: var(--green); }
+  .alert.info { background: #f0f2f5; border-color: #9aa3ad; }
   .strip { display: flex; gap: 3px; overflow-x: auto; padding-bottom: 4px; }
   .slot { min-width: 42px; text-align: center; font-size: 12px; border-radius: 6px; padding: 4px 2px; background: var(--bg); }
   .slot .bar { height: 8px; border-radius: 4px; margin: 3px 0; }
@@ -62,7 +64,8 @@
   .badge { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 12px; font-weight: 600; }
   .s-cancelled { background: #fde2e2; color: var(--red); } .s-delayed { background: #fdebd8; color: var(--orange); }
   .s-done { background: #e8ecf0; color: #5b6673; } .s-ontime { background: #dcf3e4; color: var(--green); }
-  .s-changed { background: #e0eaff; color: var(--blue); }
+  .s-changed, .s-boarding { background: #e0eaff; color: var(--blue); }
+  .seat { color: var(--green); font-weight: 600; }
   .star { background: none; border: none; font-size: 18px; cursor: pointer; color: #c4cbd3; padding: 0; }
   .star.on { color: #f5b301; }
 
@@ -121,7 +124,7 @@
   </div>
 
   <section class="card">
-    <h2>航班動態</h2>
+    <h2>航班動態 <span class="muted" id="flightSrc"></span></h2>
     <div class="tabs">
       <button data-kind="departures" class="on">離境（金門出發）</button>
       <button data-kind="arrivals">抵達（飛往金門）</button>
@@ -130,13 +133,13 @@
       <label class="muted"><input type="checkbox" id="hidePast"> 隱藏已起飛</label>
     </div>
     <table>
-      <thead><tr><th></th><th>預定</th><th>航班</th><th>航空公司</th><th id="apHead">目的地</th><th>實際／預估</th><th>登機門</th><th>狀態</th></tr></thead>
+      <thead><tr><th></th><th>預定</th><th>航班</th><th>航空公司</th><th id="apHead">目的地</th><th>實際／預計</th><th>登機門</th><th>狀態</th><th>訂位</th></tr></thead>
       <tbody id="flights"></tbody>
     </table>
   </section>
 
   <footer class="muted">
-    資料來源：交通部 TDX 運輸資料流通服務（航班、公車、航線）、中央氣象署開放資料（觀測、濃霧特報、鄉鎮預報）。<br>
+    資料來源：金門航空站即時班表（航班、訂位狀態）、交通部 TDX 運輸資料流通服務（航班備援、公車、航線）、交通部航港局（小三通船班表）、中央氣象署開放資料（觀測、濃霧特報、鄉鎮預報）。<br>
     起霧推估是依露點差、濕度、風速的經驗判斷，僅供參考；實際起降以航空公司公告為準。
   </footer>
 </main>
@@ -145,7 +148,7 @@
 <script>
 const DEMO = new URLSearchParams(location.search).get("demo") === "1";
 const REFRESH_MS = 120 * 1000;
-const STATUS_TEXT = { cancelled: "取消", delayed: "延誤", done: "已起飛", ontime: "準時", changed: "時間更改" };
+const STATUS_TEXT = { cancelled: "取消", delayed: "延誤", done: "已起飛", ontime: "準時", changed: "時間更改", boarding: "安檢中" };
 let state = null, kind = "departures";
 let tracked = JSON.parse(localStorage.getItem("tracked") || "[]");
 let lastStatus = JSON.parse(localStorage.getItem("lastStatus") || "{}");
@@ -153,7 +156,7 @@ let lastStatus = JSON.parse(localStorage.getItem("lastStatus") || "{}");
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const hm = (iso) => iso ? iso.slice(11, 16) : "";
-const statusBadge = (f) => `<span class="badge s-${f.status}">${esc(f.remark || STATUS_TEXT[f.status])}</span>`;
+const statusBadge = (f) => `<span class="badge s-${f.status}">${esc(f.label || f.remark || STATUS_TEXT[f.status])}</span>`;
 
 if (DEMO) {
   $("demoBtn").textContent = "回到即時資料";
@@ -221,8 +224,16 @@ function renderWeather() {
   } else {
     h += `<p class="muted">暫無觀測資料</p>`;
   }
-  for (const al of state.fog_alerts || []) {
-    h += `<div class="alert">⚠️ <b>${esc(al.headline)}</b>（${hm(al.effective)}–${hm(al.expires)}）<br>${esc(al.description)}</div>`;
+  // 濃霧特報：有抓到才警告；確定沒有就明說沒有；抓不到則說明無法確認（不能當成沒有）
+  const fogMeta = (state.meta || {}).fog_alerts;
+  if (!DEMO && !fogMeta) {
+    h += `<div class="alert info">❔ 無法取得氣象署濃霧特報，目前無法確認是否有特報。</div>`;
+  } else if (state.fog_alerts && state.fog_alerts.length) {
+    for (const al of state.fog_alerts) {
+      h += `<div class="alert">⚠️ <b>${esc(al.headline)}</b>（${hm(al.effective)}–${hm(al.expires)}）<br>${esc(al.description)}</div>`;
+    }
+  } else {
+    h += `<div class="alert ok">✅ 目前沒有對金門發布的濃霧特報。</div>`;
   }
   if (f && f.slots.length) {
     h += `<p style="margin:12px 0 4px"><b>未來起霧推估</b> <span class="muted">（${esc(f.town)}，紅＝容易起霧）</span></p><div class="strip">`;
@@ -248,17 +259,25 @@ function renderDestOptions() {
 }
 
 function renderFlights() {
+  const src = (state.meta || {})[kind];
+  $("flightSrc").textContent = src && src.source ? `資料來源：${src.source}` + (src.source === "TDX" ? "（官網暫時無法讀取，改用備援）" : "") : "";
   const today = state.now.slice(0, 10);
-  const dest = $("dest").value, q = $("search").value.trim().toUpperCase(), hidePast = $("hidePast").checked;
+  const dest = $("dest").value, q = $("search").value.replace(/\s/g, "").toUpperCase(), hidePast = $("hidePast").checked;
   const rows = state[kind].filter((f) =>
-    (!dest || f.airport === dest) && (!q || f.flight.includes(q)) && !(hidePast && f.status === "done"));
+    (!dest || f.airport === dest) && (!q || f.flight.replace(/\s/g, "").includes(q)) && !(hidePast && f.status === "done"));
   $("flights").innerHTML = rows.map((f) => `
     <tr class="${f.status === "done" ? "past" : ""}">
       <td><button class="star ${tracked.includes(f.flight) ? "on" : ""}" data-flight="${esc(f.flight)}" title="追蹤這班">★</button></td>
       <td>${f.date !== today ? esc(f.date.slice(5)) + " " : ""}${esc(f.scheduled)}</td>
       <td><b>${esc(f.flight)}</b></td><td>${esc(f.airline)}</td><td>${esc(f.airport_name)}</td>
-      <td>${esc(f.actual || f.estimated)}</td><td>${esc(f.gate)}</td><td>${statusBadge(f)}</td>
-    </tr>`).join("") || `<tr><td colspan="8" class="muted">沒有符合的航班</td></tr>`;
+      <td>${f.actual ? esc(f.actual) : f.estimated ? `<span class="muted">預計 ${esc(f.estimated)}</span>` : ""}</td><td>${esc(f.gate)}</td><td>${statusBadge(f)}</td><td>${bookingText(f)}</td>
+    </tr>`).join("") || `<tr><td colspan="9" class="muted">沒有符合的航班</td></tr>`;
+}
+
+function bookingText(f) {
+  if (!f.booking) return "";
+  const full = /客滿|關櫃/.test(f.booking);
+  return `<span class="${full ? "muted" : "seat"}">${esc(f.booking)}</span>`;
 }
 
 function findFlight(no) {

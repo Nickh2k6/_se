@@ -10,6 +10,7 @@
 用法：python3 server.py [port]
 """
 import gzip
+import html
 import json
 import os
 import re
@@ -156,31 +157,118 @@ def flight_status(remark):
         return "cancelled"
     if "延" in r:
         return "delayed"
-    if any(k in r for k in ("已飛", "出發", "抵達", "已到")):
+    if any(k in r for k in ("已飛", "出發", "離站", "抵達", "已到")):
         return "done"
     if "更改" in r:
         return "changed"
+    if any(k in r for k in ("檢查", "安檢", "登機", "報到")):
+        return "boarding"
     return "ontime"
 
 
+# 備註用語不直覺，統一成好懂的說法（TDX 的「檢查」就是官網的「安檢」）
+REMARK_LABEL = {"檢查": "安檢中", "安檢": "安檢中", "已飛": "已起飛", "出發": "已起飛", "離站": "已起飛"}
+
+
+def flight_record(date, airline, number, airport, sched, actual, est, remark, gate="", booking=None):
+    status = flight_status(remark)
+    m = re.search(r"預計(?:到站)?(\d{1,2}:\d{2})", remark)
+    if m:
+        est = m.group(1)
+    # TDX 和官網都會在還沒起飛／抵達的航班填「實際時間」（其實是預估），只在已完成時才採用
+    if status != "done":
+        actual = ""
+    return {
+        "date": date, "flight": f"{airline} {number}".strip(),
+        "airline": AIRLINES.get(airline, airline),
+        "airport": airport, "airport_name": AIRPORTS.get(airport, airport),
+        "scheduled": sched, "actual": actual, "estimated": est if est != sched else "",
+        "gate": gate, "remark": remark, "label": REMARK_LABEL.get(remark, remark),
+        "status": status, "booking": booking,
+    }
+
+
 def normalize_flights(rows, kind):
+    """TDX FIDS → 統一格式。"""
     out = []
     for f in rows:
-        sched = f.get("ScheduleDepartureTime" if kind == "dep" else "ScheduleArrivalTime", "")
-        actual = f.get("ActualDepartureTime" if kind == "dep" else "ActualArrivalTime", "")
-        est = f.get("EstimatedDepartureTime" if kind == "dep" else "EstimatedArrivalTime", "")
-        remark = f.get("DepartureRemark" if kind == "dep" else "ArrivalRemark", "")
-        other = f["ArrivalAirportID"] if kind == "dep" else f["DepartureAirportID"]
-        out.append({
-            "date": f.get("FlightDate"),
-            "flight": f.get("AirlineID", "") + f.get("FlightNumber", ""),
-            "airline": AIRLINES.get(f.get("AirlineID"), f.get("AirlineID")),
-            "airport": other, "airport_name": AIRPORTS.get(other, other),
-            "scheduled": sched[11:16], "actual": actual[11:16], "estimated": est[11:16],
-            "gate": f.get("Gate", ""), "remark": remark, "status": flight_status(remark),
-        })
+        d = "Departure" if kind == "dep" else "Arrival"
+        out.append(flight_record(
+            f.get("FlightDate"), f.get("AirlineID", ""), f.get("FlightNumber", ""),
+            f["ArrivalAirportID"] if kind == "dep" else f["DepartureAirportID"],
+            f.get(f"Schedule{d}Time", "")[11:16], f.get(f"Actual{d}Time", "")[11:16],
+            f.get(f"Estimated{d}Time", "")[11:16], f.get(f"{d}Remark", ""), gate=f.get("Gate", "")))
     out.sort(key=lambda x: (x["date"] or "", x["scheduled"]))
     return out
+
+
+# ---------- 金門航空站官網 ----------
+
+KMA_URL = {"dep": "https://www.kma.gov.tw/main/MoreDeparture.aspx",
+           "arr": "https://www.kma.gov.tw/main/MoreArrival.aspx"}
+# 用表頭的中文找欄位，官網調整欄位順序也不會抓錯
+KMA_COLS = {"date": "日期", "airline": "航空公司", "flight": "班次", "airport": "機場",
+            "sched_dep": "預計起飛", "act_dep": "實際起飛", "sched_arr": "預計到站",
+            "act_arr": "實際到站", "remark": "備註", "booking": "訂位"}
+KMA_AIRLINES = {"華信": "AE", "立榮": "B7", "德安": "DA"}
+KMA_AIRPORTS = {"臺北": "TSA", "台北": "TSA", "桃園": "TPE", "臺中": "RMQ", "台中": "RMQ", "嘉義": "CYI",
+                "臺南": "TNN", "台南": "TNN", "高雄": "KHH", "澎湖": "MZG", "屏東": "PIF",
+                "花蓮": "HUN", "臺東": "TTT", "台東": "TTT"}
+
+
+def kma_fetch(kind):
+    """抓官網的當日即時班表，回傳 [{欄位: 文字}]。表格格式不對就丟例外，改用 TDX。"""
+    req = urllib.request.Request(KMA_URL[kind], headers={"User-Agent": "Mozilla/5.0 kinmen-trip-helper"})
+    with urllib.request.urlopen(req, timeout=15) as resp:
+        page = resp.read().decode("utf-8", "ignore")
+    page = page[page.find('class="TableList"'):]
+    rows = [[" ".join(html.unescape(re.sub(r"<[^>]+>", " ", c)).split())
+             for c in re.findall(r"<t[dh][^>]*>(.*?)</t[dh]>", r, re.S)]
+            for r in re.findall(r"<tr[^>]*>(.*?)</tr>", page, re.S)]
+    if not rows:
+        raise ValueError("官網找不到航班表格")
+    head = [h.split(" ")[0] for h in rows[0]]
+    idx = {k: i for k, kw in KMA_COLS.items() for i, h in enumerate(head) if kw in h}
+    sched = "sched_dep" if kind == "dep" else "sched_arr"
+    if not {"date", "airline", "flight", "airport", sched, "remark"} <= idx.keys():
+        raise ValueError("官網航班表格式改變")
+    return [{k: r[i] for k, i in idx.items()} for r in rows[1:] if len(r) == len(head)]
+
+
+def normalize_kma(rows, kind, now):
+    cn = lambda s: (re.match(r"[一-鿿]+", s or "") or [""])[0]  # 「臺北Taipei」→「臺北」
+    out = []
+    for r in rows:
+        mm, dd = int(r["date"][:2]), int(r["date"][2:4])
+        year = now.year - 1 if mm - now.month > 6 else now.year + 1 if now.month - mm > 6 else now.year
+        remark = re.sub(r"[A-Za-z][A-Za-z .]*$", "", r["remark"]).strip()  # 「離站DEPARTED」→「離站」
+        airline = KMA_AIRLINES.get(cn(r["airline"]), cn(r["airline"]))
+        airport = KMA_AIRPORTS.get(cn(r["airport"]), cn(r["airport"]))
+        if kind == "dep":
+            sched, actual = r.get("sched_dep", ""), r.get("act_dep", "")
+        else:
+            sched, actual = r.get("sched_arr", ""), r.get("act_arr", "")
+        out.append(flight_record(f"{year}-{mm:02d}-{dd:02d}", airline, r["flight"], airport,
+                                 sched, actual, "", remark, booking=r.get("booking") or None))
+    out.sort(key=lambda x: (x["date"], x["scheduled"]))
+    return out
+
+
+def get_flights(kind, now, errors):
+    """先用金門航空站官網；抓不到或格式改變時改用 TDX。回傳 (航班, meta)。"""
+    try:
+        rows, meta = cached("kma_" + kind, TTL[kind], lambda: kma_fetch(kind))
+        if not rows:
+            raise ValueError("官網沒有航班資料")
+        return normalize_kma(rows, kind, now), {**meta, "source": "金門航空站"}
+    except Exception as e:
+        kma_error = str(e)
+    path = "/v2/Air/FIDS/Airport/" + ("Departure" if kind == "dep" else "Arrival") + "/KNH"
+    name = "departures" if kind == "dep" else "arrivals"
+    rows, meta = safe(name, lambda: cached(kind, TTL[kind], lambda: tdx(path)), errors)
+    if meta is None:
+        return [], None
+    return normalize_flights(rows or [], kind), {**meta, "source": "TDX", "fallback_reason": kma_error}
 
 
 def parse_visibility(desc):
@@ -343,10 +431,8 @@ def api_status(demo):
                 "forecast": d["forecast"], "meta": meta, "errors": {}}
 
     errors, meta = {}, {}
-    dep, meta["departures"] = safe("departures", lambda: cached(
-        "dep", TTL["dep"], lambda: tdx("/v2/Air/FIDS/Airport/Departure/KNH")), errors)
-    arr, meta["arrivals"] = safe("arrivals", lambda: cached(
-        "arr", TTL["arr"], lambda: tdx("/v2/Air/FIDS/Airport/Arrival/KNH")), errors)
+    dep, meta["departures"] = get_flights("dep", now, errors)
+    arr, meta["arrivals"] = get_flights("arr", now, errors)
     obs, meta["obs"] = safe("obs", lambda: cached(
         "obs", TTL["obs"], lambda: cwa("O-A0003-001", StationId=KINMEN_STATION)), errors)
     fog, meta["fog_alerts"] = safe("fog_alerts", lambda: cached(
@@ -354,8 +440,6 @@ def api_status(demo):
     fc, meta["forecast"] = safe("forecast", lambda: cached(
         "fcst", TTL["fcst"], lambda: cwa("F-D0047-085", LocationName=AIRPORT_TOWN)), errors)
 
-    dep = normalize_flights(dep or [], "dep")
-    arr = normalize_flights(arr or [], "arr")
     obs = summarize_obs(obs) if obs else None
     alerts = kinmen_fog_alerts(fog, now) if fog else []
     fcst = summarize_forecast(fc, now) if fc else None

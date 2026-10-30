@@ -3,7 +3,7 @@
  "departures": [
   {
    "date": "",
-   "flight": "AE1262",
+   "flight": "AE 1262",
    "airline": "華信航空",
    "airport": "TSA",
    "airport_name": "臺北松山",
@@ -12,11 +12,12 @@
    "estimated": "",
    "gate": "",
    "remark": "取消",
-   "status": "cancelled"
+   "status": "cancelled",
+   "label": "取消"
   },
   {
    "date": "",
-   "flight": "B78952",
+   "flight": "B7 8952",
    "airline": "立榮航空",
    "airport": "RMQ",
    "airport_name": "臺中",
@@ -25,11 +26,12 @@
    "estimated": "",
    "gate": "",
    "remark": "取消",
-   "status": "cancelled"
+   "status": "cancelled",
+   "label": "取消"
   },
   {
    "date": "",
-   "flight": "B78702",
+   "flight": "B7 8702",
    "airline": "立榮航空",
    "airport": "TSA",
    "airport_name": "臺北松山",
@@ -38,11 +40,12 @@
    "estimated": "",
    "gate": "",
    "remark": "取消",
-   "status": "cancelled"
+   "status": "cancelled",
+   "label": "取消"
   },
   {
    "date": "",
-   "flight": "AE1232",
+   "flight": "AE 1232",
    "airline": "華信航空",
    "airport": "KHH",
    "airport_name": "高雄",
@@ -51,11 +54,12 @@
    "estimated": "",
    "gate": "",
    "remark": "取消",
-   "status": "cancelled"
+   "status": "cancelled",
+   "label": "取消"
   },
   {
    "date": "",
-   "flight": "B78712",
+   "flight": "B7 8712",
    "airline": "立榮航空",
    "airport": "TSA",
    "airport_name": "臺北松山",
@@ -64,11 +68,12 @@
    "estimated": "",
    "gate": "",
    "remark": "延誤",
-   "status": "delayed"
+   "status": "delayed",
+   "label": "延誤"
   },
   {
    "date": "",
-   "flight": "AE1266",
+   "flight": "AE 1266",
    "airline": "華信航空",
    "airport": "TSA",
    "airport_name": "臺北松山",
@@ -77,11 +82,12 @@
    "estimated": "",
    "gate": "",
    "remark": "延誤",
-   "status": "delayed"
+   "status": "delayed",
+   "label": "延誤"
   },
   {
    "date": "",
-   "flight": "B78962",
+   "flight": "B7 8962",
    "airline": "立榮航空",
    "airport": "RMQ",
    "airport_name": "臺中",
@@ -90,11 +96,12 @@
    "estimated": "",
    "gate": "",
    "remark": "延誤",
-   "status": "delayed"
+   "status": "delayed",
+   "label": "延誤"
   },
   {
    "date": "",
-   "flight": "AE1282",
+   "flight": "AE 1282",
    "airline": "華信航空",
    "airport": "TNN",
    "airport_name": "臺南",
@@ -103,11 +110,12 @@
    "estimated": "",
    "gate": "",
    "remark": "時間未定",
-   "status": "delayed"
+   "status": "delayed",
+   "label": "時間未定"
   },
   {
    "date": "",
-   "flight": "B78722",
+   "flight": "B7 8722",
    "airline": "立榮航空",
    "airport": "TSA",
    "airport_name": "臺北松山",
@@ -116,11 +124,12 @@
    "estimated": "",
    "gate": "",
    "remark": "準時",
-   "status": "ontime"
+   "status": "ontime",
+   "label": "準時"
   },
   {
    "date": "",
-   "flight": "AE1236",
+   "flight": "AE 1236",
    "airline": "華信航空",
    "airport": "KHH",
    "airport_name": "高雄",
@@ -129,11 +138,12 @@
    "estimated": "",
    "gate": "",
    "remark": "準時",
-   "status": "ontime"
+   "status": "ontime",
+   "label": "準時"
   },
   {
    "date": "",
-   "flight": "B78882",
+   "flight": "B7 8882",
    "airline": "立榮航空",
    "airport": "CYI",
    "airport_name": "嘉義",
@@ -142,11 +152,12 @@
    "estimated": "",
    "gate": "",
    "remark": "準時",
-   "status": "ontime"
+   "status": "ontime",
+   "label": "準時"
   },
   {
    "date": "",
-   "flight": "AE1270",
+   "flight": "AE 1270",
    "airline": "華信航空",
    "airport": "TSA",
    "airport_name": "臺北松山",
@@ -155,11 +166,12 @@
    "estimated": "",
    "gate": "",
    "remark": "準時",
-   "status": "ontime"
+   "status": "ontime",
+   "label": "準時"
   },
   {
    "date": "",
-   "flight": "B78732",
+   "flight": "B7 8732",
    "airline": "立榮航空",
    "airport": "TSA",
    "airport_name": "臺北松山",
@@ -168,11 +180,12 @@
    "estimated": "",
    "gate": "",
    "remark": "準時",
-   "status": "ontime"
+   "status": "ontime",
+   "label": "準時"
   },
   {
    "date": "",
-   "flight": "AE1242",
+   "flight": "AE 1242",
    "airline": "華信航空",
    "airport": "KHH",
    "airport_name": "高雄",
@@ -181,11 +194,12 @@
    "estimated": "",
    "gate": "",
    "remark": "準時",
-   "status": "ontime"
+   "status": "ontime",
+   "label": "準時"
   },
   {
    "date": "",
-   "flight": "B78972",
+   "flight": "B7 8972",
    "airline": "立榮航空",
    "airport": "RMQ",
    "airport_name": "臺中",
@@ -194,11 +208,12 @@
    "estimated": "",
    "gate": "",
    "remark": "準時",
-   "status": "ontime"
+   "status": "ontime",
+   "label": "準時"
   },
   {
    "date": "",
-   "flight": "AE1276",
+   "flight": "AE 1276",
    "airline": "華信航空",
    "airport": "TSA",
    "airport_name": "臺北松山",
@@ -207,13 +222,14 @@
    "estimated": "",
    "gate": "",
    "remark": "準時",
-   "status": "ontime"
+   "status": "ontime",
+   "label": "準時"
   }
  ],
  "arrivals": [
   {
    "date": "",
-   "flight": "AE1261",
+   "flight": "AE 1261",
    "airline": "華信航空",
    "airport": "TSA",
    "airport_name": "臺北松山",
@@ -222,11 +238,12 @@
    "estimated": "",
    "gate": "",
    "remark": "取消",
-   "status": "cancelled"
+   "status": "cancelled",
+   "label": "取消"
   },
   {
    "date": "",
-   "flight": "B78701",
+   "flight": "B7 8701",
    "airline": "立榮航空",
    "airport": "TSA",
    "airport_name": "臺北松山",
@@ -235,11 +252,12 @@
    "estimated": "",
    "gate": "",
    "remark": "取消",
-   "status": "cancelled"
+   "status": "cancelled",
+   "label": "取消"
   },
   {
    "date": "",
-   "flight": "B78951",
+   "flight": "B7 8951",
    "airline": "立榮航空",
    "airport": "RMQ",
    "airport_name": "臺中",
@@ -248,11 +266,12 @@
    "estimated": "",
    "gate": "",
    "remark": "延誤",
-   "status": "delayed"
+   "status": "delayed",
+   "label": "延誤"
   },
   {
    "date": "",
-   "flight": "AE1231",
+   "flight": "AE 1231",
    "airline": "華信航空",
    "airport": "KHH",
    "airport_name": "高雄",
@@ -261,11 +280,12 @@
    "estimated": "",
    "gate": "",
    "remark": "延誤",
-   "status": "delayed"
+   "status": "delayed",
+   "label": "延誤"
   },
   {
    "date": "",
-   "flight": "B78711",
+   "flight": "B7 8711",
    "airline": "立榮航空",
    "airport": "TSA",
    "airport_name": "臺北松山",
@@ -274,7 +294,8 @@
    "estimated": "",
    "gate": "",
    "remark": "準時",
-   "status": "ontime"
+   "status": "ontime",
+   "label": "準時"
   }
  ],
  "obs": {
