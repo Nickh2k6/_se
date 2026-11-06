@@ -8,7 +8,13 @@ on:
     - cron: "40 8 * * *"
     # 18:40 再跑一次：GitHub 排程偶爾延遲或略過，或昨天的官方日 AQI 晚公布時補上；同一天重跑會覆蓋，不會重複
     - cron: "40 10 * * *"
-  workflow_dispatch: {}   # 可以在 GitHub 的 Actions 頁面手動按「Run workflow」
+  # 可以在 GitHub 的 Actions 頁面手動按「Run workflow」
+  workflow_dispatch:
+    inputs:
+      test_date:
+        description: "測試用：假裝今天是這一天（YYYY-MM-DD），只預測、不上傳；留空就是正式預測明天"
+        required: false
+        default: ""
 
 jobs:
   predict:
@@ -18,16 +24,22 @@ jobs:
       run:
         working-directory: homework/hw7/model
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.13"
           cache: pip
           cache-dependency-path: homework/hw7/model/requirements.txt
       - run: pip install -r requirements.txt
       - name: 預測明天並上傳
-        run: python predict_daily.py
+        run: |
+          if [ -n "$TEST_DATE" ]; then
+            python predict_daily.py --date "$TEST_DATE"
+          else
+            python predict_daily.py
+          fi
         env:
+          TEST_DATE: ${{ inputs.test_date }}
           MOENV_API_KEY: ${{ secrets.MOENV_API_KEY }}
           AQI_API_TOKEN: ${{ secrets.AQI_API_TOKEN }}
           AQI_SITE: https://kinmen-aqi.nickh2k6.workers.dev

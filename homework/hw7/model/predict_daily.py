@@ -179,7 +179,10 @@ def predict(dry_run, date=None):
         today = pd.Timestamp.now(TZ).tz_localize(None).normalize()
         now_hour = pd.Timestamp.now(TZ).hour
         if now_hour < CUTOFF:
-            sys.exit(f"現在 {now_hour} 點，還沒到 {CUTOFF}:00，當天的 {CUTOFF} 時版特徵還不完整")
+            # 時間還沒到不算錯誤：正常結束，GitHub Actions 顯示綠色
+            print(f"現在 {now_hour} 點，還沒到 {CUTOFF}:00，當天的 {CUTOFF} 時版特徵還不完整，這次不預測。"
+                  "想現在測試整個流程，可以用 --date 指定過去某一天。")
+            return
 
     h, up, d = load_recent(today - pd.Timedelta(days=4))   # d3_mean 要往前 3 天的官方日 AQI
     d = d[d.index < today]   # 假裝今天時，看不到今天以後才公布的官方日 AQI

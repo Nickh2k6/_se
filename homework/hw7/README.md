@@ -137,7 +137,7 @@ curl -X POST -H "Authorization: Bearer <API_TOKEN>" "https://kinmen-aqi.<子網�
    - `MOENV_API_KEY`：環境部金鑰
    - `AQI_API_TOKEN`：跟 Cloudflare 的 `API_TOKEN` 同一串
 3. commit、push 到 `main`。
-4. 到 repo 的 Actions 頁面 → 「金門空品看板每日預測」→ Run workflow，手動跑一次確認成功（16:00 以前跑會停下來並說明原因，這是正常的）。
+4. 到 repo 的 Actions 頁面 → 「金門空品看板每日預測」→ Run workflow。「測試日期」填過去某一天（例如昨天），會用那天的資料完整跑一次預測、但不上傳，可以確認金鑰、套件和模型都正常；留空就是正式預測明天（16:00 以前執行會說明時間還沒到，正常結束）。
 
 注意：GitHub 對超過 60 天沒有任何 commit 的 repo 會自動停用排程，停用後到 Actions 頁面按一下就能重新啟用。
 
