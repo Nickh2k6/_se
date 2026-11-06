@@ -1,0 +1,9 @@
+# 複製成 .dev.vars 後填入（.dev.vars 不會進 git，只給本機 wrangler dev 用）
+# 部署到 Cloudflare 時改用：npx wrangler secret put MOENV_API_KEY
+
+# 環境部環境資料開放平臺：https://data.moenv.gov.tw → 會員專區 → API 金鑰
+MOENV_API_KEY=
+
+# 自己訂一組長亂碼，Colab 上傳模型預測、手動觸發抓資料時要帶這個
+# 產生方法：python3 -c "import secrets; print(secrets.token_urlsafe(32))"
+API_TOKEN=

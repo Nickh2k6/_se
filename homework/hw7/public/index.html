@@ -1,0 +1,542 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>金門空品看板</title>
+<meta name="description" content="金門測站即時 AQI、過去 72 小時變化、環境部預報與自己的模型預測準確度比較">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='2' y='14' width='5' height='16' fill='%233E9B5B'/%3E%3Crect x='9' y='8' width='5' height='22' fill='%23D9B21E'/%3E%3Crect x='16' y='4' width='5' height='26' fill='%23E5822A'/%3E%3Crect x='23' y='11' width='5' height='19' fill='%23D9B21E'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=LXGW+WenKai+TC:wght@400;700&family=Noto+Sans+TC:wght@300;400;500;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root {
+    --fog: #EDF1F2;
+    --paper: #F8FAFA;
+    --ink: #1B2830;
+    --mute: #5D6C74;
+    --rule: #C9D3D7;
+    --sea: #2F7FA8;
+    --good: #3E9B5B;
+    --moderate: #D9B21E;
+    --usg: #E5822A;
+    --unhealthy: #D23F3F;
+    --very: #8A4AA3;
+    --hazard: #7B2433;
+    --none: #B7C2C7;
+    --kai: "LXGW WenKai TC", "Kaiti TC", "BiauKai", serif;
+    --sans: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --fog: #10191E; --paper: #16222A; --ink: #E3EAEC; --mute: #93A3AA;
+      --rule: #2A3840; --sea: #5BA9D1; --none: #3A4A52; color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --fog: #10191E; --paper: #16222A; --ink: #E3EAEC; --mute: #93A3AA;
+    --rule: #2A3840; --sea: #5BA9D1; --none: #3A4A52; color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+  html { background: var(--fog); }
+  body {
+    margin: 0; background: var(--fog); color: var(--ink);
+    font-family: var(--sans); font-size: 16px; line-height: 1.7;
+    font-feature-settings: "tnum";
+  }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 0 16px 64px; }
+  a { color: var(--sea); }
+  :focus-visible { outline: 3px solid var(--sea); outline-offset: 2px; }
+
+  header.top {
+    display: flex; justify-content: space-between; align-items: baseline;
+    gap: 12px; flex-wrap: wrap; padding: 28px 0 8px;
+  }
+  h1 { font-family: var(--kai); font-weight: 700; font-size: 2.1rem; line-height: 1.2; margin: 0; letter-spacing: .04em; }
+  .stamp { color: var(--mute); font-size: .92rem; }
+
+  /* ---------- 主視覺：現在 + 72 小時色帶 ---------- */
+  .now {
+    display: grid; grid-template-columns: auto 1fr; gap: 4px 28px; align-items: end;
+    padding: 20px 0 6px;
+  }
+  .now .value {
+    font-size: clamp(5rem, 16vw, 8.5rem); font-weight: 300; line-height: .9;
+    letter-spacing: -.03em; color: var(--level, var(--ink));
+  }
+  .now .level { font-family: var(--kai); font-size: clamp(1.6rem, 4.4vw, 2.4rem); line-height: 1.2; }
+  .now .why { color: var(--mute); margin-top: 2px; }
+  .readings {
+    display: flex; flex-wrap: wrap; gap: 4px 22px; margin: 14px 0 0; padding: 0; list-style: none;
+    color: var(--mute); font-size: .95rem;
+  }
+  .readings b { color: var(--ink); font-weight: 500; margin-left: 4px; }
+
+  .ribbon-wrap { margin-top: 22px; }
+  .ribbon {
+    display: flex; align-items: flex-end; gap: 2px; height: 120px;
+    border-bottom: 1px solid var(--rule);
+  }
+  .ribbon span {
+    flex: 1 1 0; min-width: 1px; background: var(--none);
+    border-radius: 2px 2px 0 0; transform-origin: bottom;
+  }
+  .ribbon span.gap { background: transparent; border-bottom: 2px dotted var(--none); height: 2px !important; }
+  .ribbon-axis { position: relative; height: 22px; color: var(--mute); font-size: .8rem; }
+  .ribbon-axis span { position: absolute; top: 2px; transform: translateX(-50%); white-space: nowrap; }
+  .ribbon-axis span::before {
+    content: ""; position: absolute; left: 50%; top: -6px; width: 1px; height: 5px; background: var(--rule);
+  }
+  .legend { display: flex; flex-wrap: wrap; gap: 4px 16px; color: var(--mute); font-size: .82rem; margin-top: 4px; }
+  .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
+  @media (prefers-reduced-motion: no-preference) {
+    .ribbon.grow span { animation: grow .7s cubic-bezier(.2,.7,.2,1) both; animation-delay: calc(var(--i) * 8ms); }
+    @keyframes grow { from { transform: scaleY(0); } }
+  }
+
+  /* ---------- 區塊 ---------- */
+  section { margin-top: 48px; }
+  h2 { font-family: var(--kai); font-weight: 700; font-size: 1.5rem; margin: 0 0 4px; }
+  .lead { color: var(--mute); margin: 0 0 18px; max-width: 40em; }
+
+  .tomorrow { display: grid; grid-template-columns: repeat(3, 1fr); border-top: 2px solid var(--ink); }
+  .tomorrow > div { padding: 14px 18px 16px 0; }
+  .tomorrow > div + div { padding-left: 18px; border-left: 1px solid var(--rule); }
+  .tomorrow .t { color: var(--mute); font-size: .92rem; }
+  .tomorrow .v { font-size: 2.6rem; font-weight: 300; line-height: 1.15; }
+  .tomorrow .v small { font-size: 1rem; font-family: var(--kai); margin-left: 8px; }
+  .tomorrow .n { color: var(--mute); font-size: .86rem; }
+  .dot { display: inline-block; width: .5em; height: .5em; border-radius: 50%; background: var(--level, var(--none)); margin-right: .35em; vertical-align: .15em; }
+  details.content { margin-top: 14px; color: var(--mute); font-size: .95rem; }
+  details.content summary { cursor: pointer; color: var(--ink); }
+  details.content p { max-width: 70ch; white-space: pre-line; }
+  .upcoming { margin-top: 10px; color: var(--mute); font-size: .9rem; }
+
+  .controls { display: flex; flex-wrap: wrap; gap: 10px 24px; margin-bottom: 14px; align-items: center; }
+  .seg { display: inline-flex; border: 1px solid var(--rule); border-radius: 6px; overflow: hidden; }
+  .seg button {
+    font: inherit; font-size: .9rem; padding: 4px 12px; border: 0; background: transparent; color: var(--mute); cursor: pointer;
+  }
+  .seg button + button { border-left: 1px solid var(--rule); }
+  .seg button[aria-pressed="true"] { background: var(--ink); color: var(--fog); }
+  .controls label { color: var(--mute); font-size: .9rem; }
+
+  .chart-box { position: relative; height: 320px; background: var(--paper); border: 1px solid var(--rule); border-radius: 4px; padding: 10px; }
+
+  table { width: 100%; border-collapse: collapse; font-size: .93rem; }
+  th, td { padding: 8px 10px; text-align: right; border-bottom: 1px solid var(--rule); white-space: nowrap; }
+  th:first-child, td:first-child { text-align: left; }
+  thead th { color: var(--mute); font-weight: 500; border-bottom: 1px solid var(--ink); vertical-align: bottom; }
+  tbody tr.best td { font-weight: 700; }
+  .scroll { overflow-x: auto; }
+  .note { color: var(--mute); font-size: .86rem; margin-top: 10px; max-width: 44em; }
+  td.muted { color: var(--mute); }
+  .swatch { display: inline-block; width: 18px; height: 3px; vertical-align: middle; margin-right: 6px; }
+
+  .empty {
+    padding: 22px; border: 1px dashed var(--rule); border-radius: 4px; color: var(--mute); background: var(--paper);
+  }
+  .empty strong { color: var(--ink); }
+  code { font-size: .88em; background: var(--paper); border: 1px solid var(--rule); padding: 0 4px; border-radius: 3px; }
+
+  footer { margin-top: 56px; padding-top: 14px; border-top: 1px solid var(--rule); color: var(--mute); font-size: .86rem; }
+  footer p { margin: 4px 0; }
+  .bad { color: var(--unhealthy); }
+
+  @media (max-width: 640px) {
+    h1 { font-size: 1.7rem; }
+    .now { grid-template-columns: 1fr; }
+    .ribbon { height: 90px; gap: 1px; }
+    .tomorrow { grid-template-columns: 1fr; }
+    .tomorrow > div + div { padding-left: 0; border-left: 0; border-top: 1px solid var(--rule); }
+    .chart-box { height: 260px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <h1>金門空品看板</h1>
+    <div class="stamp" id="stamp">讀取中…</div>
+  </header>
+
+  <main>
+    <div id="hero">
+      <div class="now" aria-live="polite">
+        <div class="value" id="nowValue">–</div>
+        <div>
+          <div class="level" id="nowLevel">&nbsp;</div>
+          <div class="why" id="nowWhy">&nbsp;</div>
+        </div>
+      </div>
+      <ul class="readings" id="readings"></ul>
+
+      <div class="ribbon-wrap">
+        <div class="ribbon" id="ribbon" role="img" aria-label="過去 72 小時 AQI"></div>
+        <div class="ribbon-axis" id="ribbonAxis" aria-hidden="true"></div>
+        <div class="legend" id="legend"></div>
+      </div>
+    </div>
+
+    <section aria-labelledby="h-tomorrow">
+      <h2 id="h-tomorrow">明天</h2>
+      <p class="lead">環境部對金門空品區的預報，和你自己模型上傳的預測放在一起看。</p>
+      <div class="tomorrow" id="tomorrow"></div>
+      <div class="upcoming" id="upcoming"></div>
+      <details class="content" id="fcContent" hidden>
+        <summary>環境部預報說明</summary>
+        <p id="fcText"></p>
+      </details>
+    </section>
+
+    <section aria-labelledby="h-score">
+      <h2 id="h-score">預報準不準</h2>
+      <p class="lead">每天的實測值，和前一天下午就已經知道的預測比較：環境部前一天 16:30 發布的預報、只用前一天 16:00 以前資料的模型。基準線是最簡單的猜法：明天跟今天一樣；打不贏它的預測就沒有價值。</p>
+
+      <div class="controls">
+        <div class="seg" role="group" aria-label="實測值">
+          <button type="button" data-basis="daily" aria-pressed="true">官方日 AQI</button>
+          <button type="button" data-basis="max" aria-pressed="false">每小時最大</button>
+          <button type="button" data-basis="mean" aria-pressed="false">每小時平均</button>
+        </div>
+        <div class="seg" role="group" aria-label="期間">
+          <button type="button" data-days="30" aria-pressed="true">30 天</button>
+          <button type="button" data-days="90" aria-pressed="false">90 天</button>
+          <button type="button" data-days="365" aria-pressed="false">1 年</button>
+          <button type="button" data-days="1000" aria-pressed="false">全部</button>
+        </div>
+      </div>
+
+      <div id="scoreBody">
+        <div class="chart-box"><canvas id="dailyChart" aria-label="每日實測與預報比較圖"></canvas></div>
+        <div class="scroll" style="margin-top:18px">
+          <table id="metrics">
+            <thead>
+              <tr>
+                <th scope="col">預測來源</th>
+                <th scope="col">天數</th>
+                <th scope="col">平均誤差 MAE</th>
+                <th scope="col">RMSE</th>
+                <th scope="col">等級猜對</th>
+                <th scope="col">大幅變動日</th>
+                <th scope="col">變動日 MAE</th>
+                <th scope="col">漲跌方向猜對</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <p class="note" id="metricsNote"></p>
+
+        <details style="margin-top:22px">
+          <summary style="cursor:pointer">每日數字</summary>
+          <div class="scroll">
+            <table id="dailyTable">
+              <thead><tr></tr></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </details>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <p>資料來源：環境部環境資料開放平臺「空氣品質指標(AQI)」與「空氣品質預報資料」。即時資料未經最終確認，以環境部公告為準。</p>
+    <p id="fetchStatus"></p>
+  </footer>
+</div>
+
+<script>
+const LEVELS = [
+  { max: 50, name: '良好', key: 'good' },
+  { max: 100, name: '普通', key: 'moderate' },
+  { max: 150, name: '對敏感族群不健康', key: 'usg' },
+  { max: 200, name: '對所有族群不健康', key: 'unhealthy' },
+  { max: 300, name: '非常不健康', key: 'very' },
+  { max: Infinity, name: '危害', key: 'hazard' },
+];
+const level = (aqi) => (aqi === null || aqi === undefined) ? null : LEVELS.find((l) => aqi <= l.max);
+const color = (aqi) => `var(--${level(aqi)?.key ?? 'none'})`;
+const css = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+const $ = (id) => document.getElementById(id);
+const fmt = (v, d = 0) => (v === null || v === undefined) ? '–' : Number(v).toFixed(d);
+const WEEK = '日一二三四五六';
+const dayLabel = (date) => {
+  const d = new Date(date + 'T00:00:00+08:00');
+  return `${d.getMonth() + 1}/${d.getDate()}（${WEEK[d.getDay()]}）`;
+};
+const windName = (deg) => {
+  if (deg === null || deg === undefined) return '';
+  const names = ['北', '東北', '東', '東南', '南', '西南', '西', '西北'];
+  return names[Math.round(deg / 45) % 8] + '風';
+};
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+async function getJSON(path) {
+  const res = await fetch(path);
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+  return data;
+}
+
+// ---------- 主視覺 ----------
+function renderLegend() {
+  $('legend').innerHTML = LEVELS.map((l) =>
+    `<span><i style="background:var(--${l.key})"></i>${l.name}</span>`).join('');
+}
+
+function renderNow(latest) {
+  const o = latest.observation;
+  if (!o) {
+    $('nowValue').textContent = '–';
+    $('nowLevel').textContent = '還沒有資料';
+    $('nowWhy').innerHTML = '部署後排程每小時抓一次；想馬上有資料，可呼叫 <code>POST /api/collect</code>。';
+    $('stamp').textContent = `${latest.site}測站`;
+    return;
+  }
+  const lv = level(o.aqi);
+  $('hero').style.setProperty('--level', color(o.aqi));
+  $('nowValue').textContent = o.aqi;
+  $('nowLevel').textContent = lv?.name ?? '';
+  $('nowWhy').textContent = o.pollutant ? `主要污染物：${o.pollutant}` : '各項污染物都在良好範圍';
+  $('stamp').textContent = `${latest.site}測站，${o.time.slice(5).replace('-', '/')} 發布`;
+
+  const items = [
+    ['PM2.5', o.pm25, 'μg/m³'], ['PM10', o.pm10, 'μg/m³'], ['臭氧', o.o3, 'ppb'],
+    ['二氧化氮', o.no2, 'ppb'],
+  ].filter(([, v]) => v !== null && v !== undefined)
+    .map(([n, v, u]) => `<li>${n}<b>${fmt(v, v % 1 ? 1 : 0)}</b> ${u}</li>`);
+  if (o.wind_speed !== null && o.wind_speed !== undefined) {
+    items.push(`<li>${windName(o.wind_dir)}<b>${fmt(o.wind_speed, 1)}</b> m/s</li>`);
+  }
+  if (latest.today_stats?.hours) {
+    items.push(`<li>今天到目前最高<b>${latest.today_stats.max}</b></li>`);
+  }
+  $('readings').innerHTML = items.join('');
+}
+
+function renderRibbon(rows) {
+  const box = $('ribbon');
+  const axis = $('ribbonAxis');
+  if (!rows.length) { box.innerHTML = ''; axis.innerHTML = ''; return; }
+
+  // 依時間補齊缺的小時，缺值畫成虛線
+  const byTime = new Map(rows.map((r) => [r.time, r]));
+  const start = new Date(rows[0].time.replace(' ', 'T') + ':00+08:00');
+  const end = new Date(rows[rows.length - 1].time.replace(' ', 'T') + ':00+08:00');
+  const slots = [];
+  for (let t = start.getTime(); t <= end.getTime(); t += 3600e3) {
+    const d = new Date(t + 8 * 3600e3).toISOString();
+    const key = `${d.slice(0, 10)} ${d.slice(11, 13)}:00`;
+    slots.push({ key, row: byTime.get(key) });
+  }
+  const top = Math.max(150, ...rows.map((r) => r.aqi ?? 0));
+  box.innerHTML = slots.map(({ key, row }, i) => {
+    const label = `${key.slice(5).replace('-', '/')} AQI ${row?.aqi ?? '無資料'}`;
+    if (!row || row.aqi === null) return `<span class="gap" title="${label}" style="--i:${i}"></span>`;
+    const h = Math.max(3, (row.aqi / top) * 100);
+    return `<span title="${label}" style="--i:${i};height:${h}%;background:${color(row.aqi)}"></span>`;
+  }).join('');
+  box.setAttribute('aria-label',
+    `過去 ${slots.length} 小時 AQI，最低 ${Math.min(...rows.map((r) => r.aqi ?? 999))}，最高 ${Math.max(...rows.map((r) => r.aqi ?? 0))}`);
+  box.classList.remove('grow'); void box.offsetWidth; box.classList.add('grow');
+
+  // 每天 0 點標日期
+  axis.innerHTML = slots.map(({ key }, i) => {
+    if (!key.endsWith(' 00:00')) return '';
+    const left = ((i + 0.5) / slots.length) * 100;
+    return `<span style="left:${left}%">${dayLabel(key.slice(0, 10))}</span>`;
+  }).join('');
+}
+
+// ---------- 明天 ----------
+function renderTomorrow(latest) {
+  const tmr = new Date(new Date(latest.today + 'T00:00:00+08:00').getTime() + 86400e3 + 8 * 3600e3).toISOString().slice(0, 10);
+  const fc = latest.forecasts.find((f) => f.forecast_date === tmr);
+  const preds = latest.predictions.filter((p) => p.forecast_date === tmr);
+
+  const cell = (title, aqi, note) => {
+    const lv = level(aqi);
+    return `<div style="--level:${color(aqi)}">
+      <div class="t">${title}</div>
+      <div class="v">${aqi ?? '–'}${lv ? `<small><span class="dot"></span>${lv.name}</small>` : ''}</div>
+      <div class="n">${note}</div></div>`;
+  };
+
+  const cells = [
+    cell(`環境部預報，${dayLabel(tmr)}`, fc?.aqi ?? null,
+      fc ? `${fc.publish_time.slice(5).replace('-', '/')} 發布${fc.major_pollutant ? `，主要污染物 ${esc(fc.major_pollutant)}` : ''}` : '還沒抓到明天的預報'),
+  ];
+  if (preds.length) {
+    preds.slice(0, 2).forEach((p) => cells.push(cell(esc(p.model), Math.round(p.aqi), '模型上傳的預測')));
+  } else {
+    cells.push(cell('你的模型', null, '還沒上傳，做法見 README'));
+  }
+  const ts = latest.today_stats;
+  if (cells.length < 3) cells.push(cell('今天到目前最高', ts?.hours ? ts.max : null, ts?.hours ? `已有 ${ts.hours} 小時資料，平均 ${ts.mean}` : '今天還沒有資料'));
+  $('tomorrow').innerHTML = cells.join('');
+
+  const others = latest.forecasts.filter((f) => f.forecast_date !== tmr);
+  $('upcoming').innerHTML = others.length
+    ? others.map((f) => `${f.forecast_date === latest.today ? '今天' : dayLabel(f.forecast_date)}預報 <b style="color:${color(f.aqi)}">${f.aqi ?? '–'}</b>`).join('　')
+    : '';
+
+  const withText = fc?.content ? fc : latest.forecasts.find((f) => f.content);
+  if (withText?.content) {
+    $('fcText').textContent = withText.content;
+    $('fcContent').hidden = false;
+  }
+}
+
+// ---------- 預報準不準 ----------
+let chart;
+const state = { basis: 'daily', days: 30 };
+const actualOf = (r, basis) => {
+  if (basis === 'daily') return { actual: r.daily, prev: r.prev_daily };
+  if (!r.complete) return { actual: null, prev: null };
+  return basis === 'mean' ? { actual: r.mean, prev: r.prev_mean } : { actual: r.max, prev: r.prev_max };
+};
+const basisValue = (r, basis) => (basis === 'daily' ? r.daily : r[basis]);
+const MODEL_COLORS = ['#7A5BB5', '#2E9C8F', '#B8860B', '#C2477A'];
+
+async function loadDaily() {
+  const d = await getJSON(`/api/daily?days=${state.days}&basis=${state.basis}`);
+  const hasObs = d.rows.some((r) => basisValue(r, d.basis) !== null);
+  if (!hasObs) {
+    $('scoreBody').innerHTML = `<div class="empty"><strong>累積資料中。</strong>排程每小時記錄一次，滿一天後才能和預報比較；滿一週後這裡的數字才開始有參考價值。</div>`;
+    return;
+  }
+  // 剛開始累積時，期間前段還沒有資料，圖表從第一天有實測的日子開始畫
+  d.rows = d.rows.slice(d.rows.findIndex((r) => basisValue(r, d.basis) !== null));
+  renderChart(d);
+  renderMetrics(d);
+  renderDailyTable(d);
+}
+
+function renderChart(d) {
+  const many = d.rows.length > 120;
+  // 期間超過半年時日期加上年份，例如 25/3/12
+  const labels = d.rows.map((r) => {
+    const [y, m, dd] = r.date.split('-').map(Number);
+    return d.rows.length > 180 ? `${y % 100}/${m}/${dd}` : `${m}/${dd}`;
+  });
+  const ink = css('--ink'), mute = css('--mute'), rule = css('--rule'), sea = css('--sea');
+  const pr = (n) => (many ? 0 : n);
+  const datasets = [
+    { label: `實測（${d.basis_label}）`, data: d.rows.map((r) => basisValue(r, d.basis)),
+      borderColor: ink, backgroundColor: ink, borderWidth: many ? 1.5 : 2.5, pointRadius: pr(2.5), tension: .25,
+      segment: { borderDash: (ctx) => (d.basis !== 'daily' && !d.rows[ctx.p1DataIndex]?.complete) ? [3, 3] : undefined } },
+    { label: `環境部預報（前一天 ${d.forecast_issue}）`, data: d.rows.map((r) => r.forecast), borderColor: sea, backgroundColor: sea,
+      borderWidth: many ? 1.2 : 2, borderDash: [6, 4], pointRadius: pr(2), tension: .25, spanGaps: true },
+    { label: '明天＝今天', data: d.rows.map((r) => actualOf(r, d.basis).prev), borderColor: mute, backgroundColor: mute,
+      borderWidth: 1.5, borderDash: [2, 3], pointRadius: 0, tension: .25, hidden: many },
+    ...d.models.map((m, i) => ({ label: m, data: d.rows.map((r) => r.models[m] ?? null),
+      borderColor: MODEL_COLORS[i % 4], backgroundColor: MODEL_COLORS[i % 4], borderWidth: many ? 1.2 : 2,
+      pointRadius: pr(2.5), tension: .25, spanGaps: true })),
+  ];
+  if (chart) chart.destroy();
+  if (!window.Chart) { $('dailyChart').parentElement.innerHTML = '<p class="note">圖表元件載入失敗，下面的表格仍可使用。</p>'; return; }
+  chart = new Chart($('dailyChart'), {
+    type: 'line',
+    data: { labels, datasets },
+    options: {
+      maintainAspectRatio: false, interaction: { mode: 'index', intersect: false }, animation: many ? false : undefined,
+      font: { family: css('--sans') },
+      scales: {
+        x: { ticks: { color: mute, maxRotation: 0, autoSkipPadding: 12 }, grid: { display: false }, border: { color: rule } },
+        y: { beginAtZero: true, suggestedMax: 120, ticks: { color: mute }, grid: { color: rule }, border: { display: false },
+             title: { display: true, text: 'AQI', color: mute } },
+      },
+      plugins: {
+        legend: { labels: { color: ink, usePointStyle: true, pointStyle: 'line', boxWidth: 28 } },
+        tooltip: { callbacks: { label: (c) => `${c.dataset.label}：${c.parsed.y ?? '–'}` } },
+      },
+    },
+  });
+}
+
+function renderMetrics(d) {
+  const withData = d.metrics.filter((m) => m.n > 0);
+  const best = withData.length ? Math.min(...withData.map((m) => m.mae)) : null;
+  const sw = (m) => {
+    if (m.key === 'forecast') return `<span class="swatch" style="background:var(--sea)"></span>`;
+    if (m.key === 'persistence') return `<span class="swatch" style="background:var(--mute)"></span>`;
+    const i = d.models.indexOf(m.key.slice(6));
+    return `<span class="swatch" style="background:${MODEL_COLORS[i % 4]}"></span>`;
+  };
+  document.querySelector('#metrics tbody').innerHTML = d.metrics.map((m) => `
+    <tr class="${m.n && m.mae === best ? 'best' : ''}">
+      <td>${sw(m)}${esc(m.label)}</td>
+      <td>${m.n}</td>
+      <td>${fmt(m.mae, 1)}</td>
+      <td>${fmt(m.rmse, 1)}</td>
+      <td>${m.level_acc === null ? '–' : fmt(m.level_acc, 0) + '%'}</td>
+      <td>${m.big_n}</td>
+      <td>${fmt(m.big_mae, 1)}</td>
+      <td>${m.big_dir_acc === null ? '–' : fmt(m.big_dir_acc, 0) + '%'}</td>
+    </tr>`).join('');
+  $('metricsNote').textContent =
+    `只比較實測和每個來源都有值的日子，所以天數都相同。粗體是平均誤差最小的。大幅變動日指實測比前一天變動 ${d.big_change} 以上的日子；漲跌方向猜對指預測值相對前一天的漲跌，和實際一致。` +
+    (d.basis === 'daily'
+      ? '實測是環境部公布的金門站官方日 AQI（隔天早上公布，所以今天還沒有）。'
+      : `實測是金門站每小時 AQI 的${d.basis === 'mean' ? '日平均' : '日最大值'}，只計入資料滿 18 小時的日子。`) +
+    `環境部預報針對整個金門空品區，採用前一天 ${d.forecast_issue}（含）以前發布的最後一版。`;
+}
+
+function renderDailyTable(d) {
+  const head = ['日期', '官方日 AQI', '每小時最大', '每小時平均', '小時數', '環境部預報', ...d.models];
+  document.querySelector('#dailyTable thead tr').innerHTML = head.map((h) => `<th scope="col">${esc(h)}</th>`).join('');
+  document.querySelector('#dailyTable tbody').innerHTML = [...d.rows].reverse().map((r) => `
+    <tr>
+      <td>${dayLabel(r.date)}</td>
+      <td><span class="dot" style="--level:${color(r.daily)}"></span>${fmt(r.daily)}</td>
+      <td>${fmt(r.max)}</td>
+      <td>${fmt(r.mean, 1)}</td>
+      <td class="${r.complete ? '' : 'muted'}">${r.hours}</td>
+      <td>${fmt(r.forecast)}</td>
+      ${d.models.map((m) => `<td>${fmt(r.models[m], 1)}</td>`).join('')}
+    </tr>`).join('');
+}
+
+function bindControls() {
+  document.querySelectorAll('.seg button').forEach((b) => b.addEventListener('click', () => {
+    const group = b.parentElement;
+    group.querySelectorAll('button').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+    if (b.dataset.basis) state.basis = b.dataset.basis;
+    if (b.dataset.days) state.days = Number(b.dataset.days);
+    loadDaily().catch(showError);
+  }));
+}
+
+async function loadStatus() {
+  const s = await getJSON('/api/status');
+  const last = s.recent[0];
+  if (!last) { $('fetchStatus').textContent = '排程還沒執行過。'; return; }
+  const t = new Date(last.time).toLocaleString('zh-TW', { timeZone: 'Asia/Taipei', hour12: false });
+  $('fetchStatus').innerHTML = last.ok
+    ? `最近一次抓取：${t}，成功。已累積 ${s.counts.observations} 筆每小時資料。`
+    : `<span class="bad">最近一次抓取：${t}，失敗：${esc(last.message)}</span>`;
+}
+
+function showError(err) {
+  console.error(err);
+  $('stamp').innerHTML = `<span class="bad">讀取失敗：${esc(err.message)}，稍後重新整理再試</span>`;
+}
+
+async function main() {
+  renderLegend();
+  bindControls();
+  const [latest, hourly] = await Promise.all([getJSON('/api/latest'), getJSON('/api/hourly?hours=72')]);
+  renderNow(latest);
+  renderRibbon(hourly.rows);
+  renderTomorrow(latest);
+  await Promise.all([loadDaily(), loadStatus()]);
+}
+main().catch(showError);
+</script>
+</body>
+</html>

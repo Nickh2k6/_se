@@ -1,0 +1,17 @@
+{
+  "name": "kinmen-aqi",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "金門空品看板：Cloudflare Workers + D1",
+  "scripts": {
+    "dev": "wrangler dev --test-scheduled",
+    "deploy": "wrangler deploy",
+    "db:local": "wrangler d1 migrations apply kinmen-aqi --local",
+    "db:remote": "wrangler d1 migrations apply kinmen-aqi --remote",
+    "test": "node --test test/*.test.js"
+  },
+  "devDependencies": {
+    "wrangler": "^4.158.0"
+  }
+}

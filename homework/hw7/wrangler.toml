@@ -1,0 +1,28 @@
+name = "kinmen-aqi"
+main = "src/index.js"
+compatibility_date = "2026-09-01"
+
+# public/ 裡的檔案直接當網站；找不到檔案的路徑（/api/*）才交給 Worker
+[assets]
+directory = "./public"
+binding = "ASSETS"
+
+# 每小時第 20 分抓一次（環境部約整點後 10～15 分更新）；cron 用 UTC，但「每小時」跟時區無關
+[triggers]
+crons = ["20 * * * *"]
+
+[vars]
+SITE_NAME = "金門"        # 即時 AQI 的測站名稱
+FORECAST_AREA = "金門"    # 空品預報的空品區名稱
+FORECAST_ISSUE = "16:30"  # 和前一天這個時刻（含）以前發布的最後一版預報比較，配合 16 時版模型
+MAX_BACKFILL_DAYS = "90"  # /api/backfill 一次最多補幾天（免費方案 CPU 時間有限，更長的歷史用 SQL 檔匯入）
+
+# 執行 `npx wrangler d1 create kinmen-aqi` 後，把印出來的 database_id 貼到下面
+[[d1_databases]]
+binding = "DB"
+database_name = "kinmen-aqi"
+database_id = "14a99e10-02d0-4d9a-83c3-1c7a011774b4"
+migrations_dir = "migrations"
+
+[observability]
+enabled = true
