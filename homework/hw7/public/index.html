@@ -374,7 +374,7 @@ function renderTomorrow(latest) {
   if (preds.length) {
     preds.slice(0, 2).forEach((p) => cells.push(cell(esc(p.model), Math.round(p.aqi), '模型上傳的預測')));
   } else {
-    cells.push(cell('你的模型', null, '還沒上傳，做法見 README'));
+    cells.push(cell('我的模型', null, '每天 16:40 用當天 16:00 前的資料自動預測明天，今天的還沒產生'));
   }
   const ts = latest.today_stats;
   if (cells.length < 3) cells.push(cell('今天到目前最高', ts?.hours ? ts.max : null, ts?.hours ? `已有 ${ts.hours} 小時資料，平均 ${ts.mean}` : '今天還沒有資料'));
