@@ -1,0 +1,25 @@
+{
+  "name": "kinmen-aqi",
+  "version": "0.1.0",
+  "description": "金門空氣品質查詢：即時 AQI、每小時紀錄、明日預報與預報準確度（資料來自金門空品看板）",
+  "keywords": ["aqi", "air-quality", "kinmen", "taiwan", "金門", "空氣品質", "cli"],
+  "license": "MIT",
+  "author": "黃信惟",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Nickh2k6/_se.git",
+    "directory": "homework/hw8"
+  },
+  "type": "module",
+  "exports": "./src/index.js",
+  "bin": {
+    "kinmen-aqi": "src/cli.js"
+  },
+  "files": ["src"],
+  "engines": {
+    "node": ">=18.3"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.js"
+  }
+}
