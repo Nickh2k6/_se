@@ -1,9 +1,14 @@
 """
 每天下午由 GitHub Actions 執行：用 16 時版模型預測「明天」的金門官方日 AQI，上傳到看板。
+有兩個模型：
+  我的模型     只用觀測資料（model_16.joblib）
+  模型＋預報   再加一個特徵 forecast＝今天 16:30 發布、預報明天的環境部 AQI（model_16_fc.joblib）
+               16:30 那版預報還沒抓到時，這次只上傳「我的模型」，18:40 那次會再試。
+GitHub 排程延遲到隔天凌晨才執行時，會改用前一天 16 點前的資料預測當天（見 latest_cutoff_day）。
 
 特徵的算法逐行照抄期中報告 notebook（金門明日 AQI 預測）的 parse_hourly、hourly_feats、build_features，
-只是把「整段歷史」換成「最近幾天」。`--check` 會用 notebook 匯出的特徵（features_reference.csv）
-逐欄比對，確認兩邊算出來的數字一樣。
+只是把「整段歷史」換成「最近幾天」；官方預報的篩選照抄 notebook 第 3 節。`--check` 會用 notebook
+匯出的特徵（features_reference.csv）逐欄比對，確認兩邊算出來的數字一樣。
 
 環境變數：
   MOENV_API_KEY   環境部 API 金鑰
@@ -35,6 +40,7 @@ META = json.loads((HERE / "model_meta.json").read_text(encoding="utf-8"))
 CONFIG = META["config"]          # 與 notebook 相同的設定（測站、截止時間、最少有效小時數）
 CUTOFF = META["cutoff"]          # 16：只用當天 16:00 以前的觀測
 FEATURES = META["features"]      # 模型特徵，順序與訓練時相同
+HYBRID = META.get("hybrid")      # 「模型＋預報」的設定；舊版 model_meta.json 沒有這段時就只跑「我的模型」
 TZ = ZoneInfo("Asia/Taipei")
 
 
@@ -151,6 +157,59 @@ def load_recent(since):
     return h, up, d
 
 
+# ---------- 官方預報（模型＋預報用，照抄 notebook 第 3 節）----------
+
+def load_forecasts(since):
+    """since 當天（含）以後發布的金門空品區預報；since 是 pd.Timestamp（日期）"""
+    after = (since - pd.Timedelta(days=1)).strftime("%Y-%m-%d") + " 23:59"   # GR 是「大於」
+    return fetch("aqf_p_01", f"area,EQ,{CONFIG['site']}|publishtime,GR,{after}", "publishtime desc")
+
+
+def forecast_feature(f, days, issue):
+    """
+    每個 day 取「day 當天 issue 時刻發布、預報 day 隔天」的官方 AQI，回傳以 day 為索引的 Series（沒有就是 NaN）。
+    2026-11-10 起環境部把預報拆成「上午／下午／全日」（timeperiod 欄），目標是官方日 AQI，所以只用「全日」；
+    舊資料沒有 timeperiod（空白），照常使用。
+    """
+    out = pd.Series(np.nan, index=days, dtype=float, name="forecast")
+    if f.empty:
+        return out
+    x = f.copy()
+    x["pub"] = pd.to_datetime(x["publishtime"], format="mixed")
+    x["target"] = pd.to_datetime(x["forecastdate"], format="mixed")
+    x["aqi"] = pd.to_numeric(x["aqi"], errors="coerce")          # 跟 notebook 相同：區間寫法（51-70）當成缺值
+    tp = x["timeperiod"].fillna("").astype(str).str.strip() if "timeperiod" in x.columns else pd.Series("", index=x.index)
+    x = x[tp.isin(["", "nan", "None", "全日"])]
+    lead_days = (x["target"] - x["pub"].dt.normalize()).dt.days
+    x = x[(lead_days == 1) & (x["pub"].dt.strftime("%H:%M") == issue)]
+    # 跟 notebook 的 assert 相同：同一次發布對同一天只能有一個值，否則寧可不預測
+    n = x.groupby("target")["aqi"].nunique()
+    if (n > 1).any():
+        raise RuntimeError(f"同一次發布對同一天有兩個不同預報值：{[str(t.date()) for t in n[n > 1].index]}")
+    v = x.dropna(subset=["aqi"]).drop_duplicates("target").set_index("target")["aqi"]
+    v.index = v.index - pd.Timedelta(days=1)                      # 改成以「發布當天」（今天）為索引
+    return v.reindex(days).astype(float).rename("forecast")
+
+
+def predict_hybrid(row, today):
+    """用「模型＋預報」預測明天；今天 16:30 的預報還沒有或抓不到時回傳 None，不影響「我的模型」"""
+    name, issue = HYBRID["model_name"], HYBRID["forecast_issue"]
+    try:
+        fc = forecast_feature(load_forecasts(today), pd.DatetimeIndex([today]), issue).iloc[0]
+    except Exception as e:
+        print(f"{name}：讀取官方預報失敗（{e}），這次不預測", file=sys.stderr)
+        return None
+    if pd.isna(fc):
+        print(f"{name}：還沒有 {today.date()} {issue} 發布的隔天預報（全日），這次不預測，之後重跑會補上")
+        return None
+    X = row[FEATURES].copy()
+    X["forecast"] = fc
+    model = joblib.load(HERE / HYBRID["model_file"])
+    pred = float(model.predict(X[HYBRID["features"]])[0])
+    print(f"{today.date()} {issue} 官方預報隔天 AQI：{fc:.0f}；{name}（{HYBRID['learner']}）預測：{pred:.1f}")
+    return pred
+
+
 # ---------- 主程式 ----------
 
 def check():
@@ -158,37 +217,49 @@ def check():
     ref = pd.read_csv(HERE / "features_reference.csv", index_col=0, parse_dates=True)
     h, up, d = load_recent(ref.index.min() - pd.Timedelta(days=4))   # d3_mean 要往前 3 天的官方日 AQI
     mine = build_features(h, up, d, ref.index)
-    diff = (mine[FEATURES] - ref[FEATURES]).abs()
-    both_nan = mine[FEATURES].isna() & ref[FEATURES].isna()
+    cols = list(FEATURES)
+    if HYBRID and "forecast" in ref.columns:   # 也比對「模型＋預報」多出來的 forecast 特徵
+        mine["forecast"] = forecast_feature(load_forecasts(ref.index.min()), ref.index, HYBRID["forecast_issue"])
+        cols.append("forecast")
+    diff = (mine[cols] - ref[cols]).abs()
+    both_nan = mine[cols].isna() & ref[cols].isna()
     bad = (diff > 1e-6) & ~both_nan
-    one_nan = mine[FEATURES].isna() ^ ref[FEATURES].isna()
-    print(f"比對 {len(ref)} 天 × {len(FEATURES)} 個特徵（{ref.index.min().date()}～{ref.index.max().date()}）")
+    one_nan = mine[cols].isna() ^ ref[cols].isna()
+    print(f"比對 {len(ref)} 天 × {len(cols)} 個特徵（{ref.index.min().date()}～{ref.index.max().date()}）")
     if bad.values.any() or one_nan.values.any():
         print("不一致的欄位：")
-        for c in FEATURES:
+        for c in cols:
             if bad[c].any() or one_nan[c].any():
                 print(f"  {c}：{int(bad[c].sum() + one_nan[c].sum())} 天")
         sys.exit(1)
     print("全部一致")
 
 
+def latest_cutoff_day(now):
+    """
+    最近一次「已經過了 CUTOFF 點」的日子（now 是台灣時間的 pd.Timestamp）。
+    GitHub 的排程常延遲 8～12 小時，16:40 的排程可能半夜才跑。這時今天還沒到 16 點，就改用昨天 16 點前的
+    資料（和昨天 16:30 的預報）預測今天：用到的資訊跟昨天準時執行時完全一樣，比較仍然公平，只是晚一點上傳。
+    """
+    day = now.tz_localize(None).normalize()
+    if now.hour < CUTOFF:
+        day -= pd.Timedelta(days=1)
+        print(f"現在 {now:%m-%d %H:%M}，今天還沒到 {CUTOFF}:00；改用昨天（{day.date()}）{CUTOFF}:00 前的資料預測今天")
+    return day
+
+
 def predict(dry_run, date=None):
+    # today：「發布預測的那一天」，用它 CUTOFF 點以前的資料預測隔天
     if date:   # 測試用：假裝今天是 date（只預測、不上傳）
         today, dry_run = pd.Timestamp(date), True
     else:
-        today = pd.Timestamp.now(TZ).tz_localize(None).normalize()
-        now_hour = pd.Timestamp.now(TZ).hour
-        if now_hour < CUTOFF:
-            # 時間還沒到不算錯誤：正常結束，GitHub Actions 顯示綠色
-            print(f"現在 {now_hour} 點，還沒到 {CUTOFF}:00，當天的 {CUTOFF} 時版特徵還不完整，這次不預測。"
-                  "想現在測試整個流程，可以用 --date 指定過去某一天。")
-            return
+        today = latest_cutoff_day(pd.Timestamp.now(TZ))
 
     h, up, d = load_recent(today - pd.Timedelta(days=4))   # d3_mean 要往前 3 天的官方日 AQI
-    d = d[d.index < today]   # 假裝今天時，看不到今天以後才公布的官方日 AQI
+    d = d[d.index < today]   # 看不到 today 當天以後才公布的官方日 AQI（假裝過去某天、或排程延遲到隔天時都一樣）
     X = build_features(h, up, d, pd.DatetimeIndex([today]))
     row = X.iloc[[0]]
-    print(f"今天 {today.date()}：金門 {CUTOFF}:00 前有效 {int(row['n_valid_hours'].iloc[0])} 小時；"
+    print(f"用 {today.date()} {CUTOFF}:00 前的資料：金門有效 {int(row['n_valid_hours'].iloc[0])} 小時；"
           f"最新官方日 AQI {d['aqi'].dropna().index.max().date()}")
 
     # 與 notebook 的資料篩選相同：今天觀測不足、或昨天的官方日 AQI 還沒公布，就不預測
@@ -203,13 +274,20 @@ def predict(dry_run, date=None):
     print("特徵：", json.dumps({k: (None if pd.isna(v) else round(float(v), 3)) for k, v in row[FEATURES].iloc[0].items()},
                               ensure_ascii=False))
     print(f"預測 {target} 的官方日 AQI：{pred:.1f}（{META['learner']}，{META['model_name']}）")
+    uploads = [{"date": target, "aqi": round(pred, 1), "model": META["model_name"]}]
+
+    # 模型＋預報：有今天 16:30 的預報才預測，沒有就只上傳「我的模型」
+    if HYBRID:
+        pred_fc = predict_hybrid(row, today)
+        if pred_fc is not None:
+            uploads.append({"date": target, "aqi": round(pred_fc, 1), "model": HYBRID["model_name"]})
 
     if dry_run:
         return
     site, token = os.environ["AQI_SITE"].rstrip("/"), os.environ["AQI_API_TOKEN"]
-    r = requests.post(f"{site}/api/predictions", timeout=30,
+    r = requests.post(f"{site}/api/predictions", timeout=30,     # 一次上傳全部（API 接受陣列）
                       headers={"Authorization": f"Bearer {token}", "User-Agent": "kinmen-aqi-predictor"},
-                      json={"date": target, "aqi": round(pred, 1), "model": META["model_name"]})
+                      json=uploads)
     if not r.ok:
         sys.exit(f"上傳失敗（HTTP {r.status_code}）：{r.text}")
     print("已上傳：", r.json())

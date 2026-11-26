@@ -354,6 +354,12 @@ function renderRibbon(rows) {
 }
 
 // ---------- 明天 ----------
+// 「明天」區塊固定顯示的兩個模型（名稱要和上傳時的 model 一樣）
+const MODELS = [
+  { name: '我的模型', note: '只用觀測資料（16:00 前）' },
+  { name: '模型＋預報', note: '觀測資料＋環境部 16:30 預報' },
+];
+
 function renderTomorrow(latest) {
   const tmr = new Date(new Date(latest.today + 'T00:00:00+08:00').getTime() + 86400e3 + 8 * 3600e3).toISOString().slice(0, 10);
   const fc = latest.forecasts.find((f) => f.forecast_date === tmr);
@@ -367,23 +373,25 @@ function renderTomorrow(latest) {
       <div class="n">${note}</div></div>`;
   };
 
+  // 固定三格：環境部預報＋兩個模型；模型的預測還沒產生時顯示「–」和說明
   const cells = [
     cell(`環境部預報，${dayLabel(tmr)}`, fc?.aqi ?? null,
       fc ? `${fc.publish_time.slice(5).replace('-', '/')} 發布${fc.major_pollutant ? `，主要污染物 ${esc(fc.major_pollutant)}` : ''}` : '還沒抓到明天的預報'),
+    ...MODELS.map((m) => {
+      const p = preds.find((x) => x.model === m.name);
+      return cell(m.name, p ? Math.round(p.aqi) : null, p ? m.note : `${m.note}；每天 16:40 預測明天，還沒產生`);
+    }),
   ];
-  if (preds.length) {
-    preds.slice(0, 2).forEach((p) => cells.push(cell(esc(p.model), Math.round(p.aqi), '模型上傳的預測')));
-  } else {
-    cells.push(cell('我的模型', null, '每天 16:40 用當天 16:00 前的資料自動預測明天，今天的還沒產生'));
-  }
-  const ts = latest.today_stats;
-  if (cells.length < 3) cells.push(cell('今天到目前最高', ts?.hours ? ts.max : null, ts?.hours ? `已有 ${ts.hours} 小時資料，平均 ${ts.mean}` : '今天還沒有資料'));
   $('tomorrow').innerHTML = cells.join('');
 
-  const others = latest.forecasts.filter((f) => f.forecast_date !== tmr);
-  $('upcoming').innerHTML = others.length
-    ? others.map((f) => `${f.forecast_date === latest.today ? '今天' : dayLabel(f.forecast_date)}預報 <b style="color:${color(f.aqi)}">${f.aqi ?? '–'}</b>`).join('　')
-    : '';
+  // 下方一行：今天、後天的環境部預報，以及今天的模型預測（排程延遲時補上的也看得到）
+  const others = latest.forecasts.filter((f) => f.forecast_date !== tmr)
+    .map((f) => `${f.forecast_date === latest.today ? '今天' : dayLabel(f.forecast_date)}預報 <b style="color:${color(f.aqi)}">${f.aqi ?? '–'}</b>`);
+  const todayPreds = latest.predictions.filter((p) => p.forecast_date === latest.today);
+  if (todayPreds.length) {
+    others.push('今天：' + todayPreds.map((p) => `${esc(p.model)} <b style="color:${color(p.aqi)}">${Math.round(p.aqi)}</b>`).join('、'));
+  }
+  $('upcoming').innerHTML = others.join('　');
 
   const withText = fc?.content ? fc : latest.forecasts.find((f) => f.content);
   if (withText?.content) {
