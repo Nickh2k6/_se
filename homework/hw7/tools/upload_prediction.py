@@ -20,7 +20,9 @@ def upload(site, token, predictions, model="我的模型"):
     req = urllib.request.Request(
         site.rstrip("/") + "/api/predictions",
         data=json.dumps(body).encode("utf-8"),
-        headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+        # Cloudflare 會擋 Python 預設的 User-Agent（Python-urllib，回 403 error code 1010），所以要自己取名
+        headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json",
+                 "User-Agent": "kinmen-aqi-uploader"},
         method="POST",
     )
     try:

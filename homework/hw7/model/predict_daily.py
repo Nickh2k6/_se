@@ -4,6 +4,7 @@
   我的模型     只用觀測資料（model_16.joblib）
   模型＋預報   再加一個特徵 forecast＝今天 16:30 發布、預報明天的環境部 AQI（model_16_fc.joblib）
                16:30 那版預報還沒抓到時，這次只上傳「我的模型」，18:40 那次會再試。
+GitHub 排程延遲到隔天凌晨才執行時，會改用前一天 16 點前的資料預測當天（見 latest_cutoff_day）。
 
 特徵的算法逐行照抄期中報告 notebook（金門明日 AQI 預測）的 parse_hourly、hourly_feats、build_features，
 只是把「整段歷史」換成「最近幾天」；官方預報的篩選照抄 notebook 第 3 節。`--check` 會用 notebook
@@ -234,23 +235,31 @@ def check():
     print("全部一致")
 
 
+def latest_cutoff_day(now):
+    """
+    最近一次「已經過了 CUTOFF 點」的日子（now 是台灣時間的 pd.Timestamp）。
+    GitHub 的排程常延遲 8～12 小時，16:40 的排程可能半夜才跑。這時今天還沒到 16 點，就改用昨天 16 點前的
+    資料（和昨天 16:30 的預報）預測今天：用到的資訊跟昨天準時執行時完全一樣，比較仍然公平，只是晚一點上傳。
+    """
+    day = now.tz_localize(None).normalize()
+    if now.hour < CUTOFF:
+        day -= pd.Timedelta(days=1)
+        print(f"現在 {now:%m-%d %H:%M}，今天還沒到 {CUTOFF}:00；改用昨天（{day.date()}）{CUTOFF}:00 前的資料預測今天")
+    return day
+
+
 def predict(dry_run, date=None):
+    # today：「發布預測的那一天」，用它 CUTOFF 點以前的資料預測隔天
     if date:   # 測試用：假裝今天是 date（只預測、不上傳）
         today, dry_run = pd.Timestamp(date), True
     else:
-        today = pd.Timestamp.now(TZ).tz_localize(None).normalize()
-        now_hour = pd.Timestamp.now(TZ).hour
-        if now_hour < CUTOFF:
-            # 時間還沒到不算錯誤：正常結束，GitHub Actions 顯示綠色
-            print(f"現在 {now_hour} 點，還沒到 {CUTOFF}:00，當天的 {CUTOFF} 時版特徵還不完整，這次不預測。"
-                  "想現在測試整個流程，可以用 --date 指定過去某一天。")
-            return
+        today = latest_cutoff_day(pd.Timestamp.now(TZ))
 
     h, up, d = load_recent(today - pd.Timedelta(days=4))   # d3_mean 要往前 3 天的官方日 AQI
-    d = d[d.index < today]   # 假裝今天時，看不到今天以後才公布的官方日 AQI
+    d = d[d.index < today]   # 看不到 today 當天以後才公布的官方日 AQI（假裝過去某天、或排程延遲到隔天時都一樣）
     X = build_features(h, up, d, pd.DatetimeIndex([today]))
     row = X.iloc[[0]]
-    print(f"今天 {today.date()}：金門 {CUTOFF}:00 前有效 {int(row['n_valid_hours'].iloc[0])} 小時；"
+    print(f"用 {today.date()} {CUTOFF}:00 前的資料：金門有效 {int(row['n_valid_hours'].iloc[0])} 小時；"
           f"最新官方日 AQI {d['aqi'].dropna().index.max().date()}")
 
     # 與 notebook 的資料篩選相同：今天觀測不足、或昨天的官方日 AQI 還沒公布，就不預測
