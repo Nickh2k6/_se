@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   taipeiNow, addDays, extractRecords, normTime, num, parseAqiValue,
-  parseObservation, parseForecast, parseDailyOfficial, aqiLevel, buildDaily, computeMetrics, validatePrediction,
+  parseObservation, parseForecast, isWholeDayForecast, parseDailyOfficial, aqiLevel, buildDaily, computeMetrics, validatePrediction,
 } from '../src/lib.js';
 
 test('台灣時間換算', () => {
@@ -82,6 +82,23 @@ test('解析預報一筆', () => {
   assert.deepEqual(
     { area: f.area, d: f.forecast_date, p: f.publish_time, aqi: f.aqi },
     { area: '金門', d: '2026-11-07', p: '2026-11-06 10:30', aqi: 85 });
+  assert.equal(f.time_period, '');
+  assert.equal(isWholeDayForecast(f), true);   // 舊資料沒有時段欄，照常使用
+});
+
+test('預報分時段（2026-11-10 起）只留全日', () => {
+  // 2026-11-11 16:30 實際抓到的三筆：同一次發布、同一天，上午 50、下午 80、全日 80
+  const base = { area: '金門', publishtime: '2026-11-11 16:30', forecastdate: '2026-11-12', content: '...' };
+  const rows = [
+    { ...base, aqi: '50', majorpollutant: '', timeperiod: '上午' },
+    { ...base, aqi: '80', majorpollutant: '臭氧八小時', timeperiod: '下午' },
+    { ...base, aqi: '80', majorpollutant: '臭氧八小時', timeperiod: '全日' },
+  ].map(parseForecast);
+  assert.deepEqual(rows.map((r) => r.time_period), ['上午', '下午', '全日']);
+  const kept = rows.filter(isWholeDayForecast);
+  assert.equal(kept.length, 1);
+  assert.equal(kept[0].aqi, 80);
+  assert.equal(isWholeDayForecast(null), false);
 });
 
 test('AQI 等級邊界', () => {

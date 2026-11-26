@@ -103,7 +103,18 @@ export function parseForecast(rec) {
     aqi: parseAqiValue(pick(rec, 'aqi', 'AQI')),
     major_pollutant: String(pick(rec, 'majorpollutant', 'MajorPollutant') ?? '').trim(),
     content: String(pick(rec, 'content', 'Content') ?? '').trim(),
+    // 2026-11-10 起多了時段欄：上午／下午／全日；之前的資料沒有（空字串）
+    time_period: String(pick(rec, 'timeperiod', 'TimePeriod') ?? '').trim(),
   };
+}
+
+/**
+ * 是不是「整天」的預報。2026-11-10 起同一次發布、同一天會有上午／下午／全日三筆，
+ * 數值不一定相同；我們比的是官方日 AQI，所以只留「全日」（舊資料沒有時段，照常保留）。
+ * 不篩掉的話，三筆主鍵相同，資料庫裡會留下隨便一筆。
+ */
+export function isWholeDayForecast(row) {
+  return !!row && (row.time_period === '' || row.time_period === '全日');
 }
 
 export const LEVELS = [

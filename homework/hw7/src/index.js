@@ -3,7 +3,7 @@
 // HTTP：/api/* 回傳 JSON；其他路徑由 public/ 靜態檔案提供。
 
 import {
-  taipeiNow, addDays, extractRecords, parseObservation, parseForecast, parseDailyOfficial,
+  taipeiNow, addDays, extractRecords, parseObservation, parseForecast, isWholeDayForecast, parseDailyOfficial,
   buildDaily, computeMetrics, validatePrediction, BASES,
 } from './lib.js';
 
@@ -52,8 +52,8 @@ export async function collect(env) {
 
   const [obsRes, fcRes, dailyRes] = await Promise.allSettled([
     fetchDataset(env, 'aqx_p_432', { filters: `sitename,EQ,${site}` }),
-    // 預報資料集保留過去各版；最新 30 筆約是最近 3 天、每天 3 版
-    fetchDataset(env, 'aqf_p_01', { filters: `area,EQ,${area}`, sort: 'publishtime desc', limit: 30 }),
+    // 預報資料集保留過去各版；2026-11-10 起每版約 6 筆（分上午／下午／全日），最新 60 筆約是最近 3 天
+    fetchDataset(env, 'aqf_p_01', { filters: `area,EQ,${area}`, sort: 'publishtime desc', limit: 60 }),
     // 官方日 AQI 隔天早上才公布，抓最近幾天就夠
     fetchDataset(env, 'aqx_p_434', { filters: `sitename,EQ,${site}`, sort: 'monitordate desc', limit: 10 }),
   ]);
@@ -67,8 +67,9 @@ export async function collect(env) {
   }
 
   if (fcRes.status === 'fulfilled') {
-    const rows = fcRes.value.map(parseForecast).filter((r) => r && r.area === area);
-    if (rows.length === 0) result.errors.push(`預報資料裡找不到「${area}」空品區`);
+    // 只留「全日」那筆，否則上午／下午／全日主鍵相同，會互相覆蓋
+    const rows = fcRes.value.map(parseForecast).filter((r) => r && r.area === area && isWholeDayForecast(r));
+    if (rows.length === 0) result.errors.push(`預報資料裡找不到「${area}」空品區的全日預報`);
     result.forecasts = await saveForecasts(env, rows);
   } else {
     result.errors.push(fcRes.reason.message);
@@ -159,7 +160,8 @@ export async function backfill(env, days) {
   // API 的範圍篩選是字串比較，這裡再確認一次範圍，並依主鍵去重
   const dedupe = (rows, key) => [...new Map(rows.map((r) => [key(r), r])).values()];
   const obs = dedupe(obsRecs.map(parseObservation).filter((r) => r && r.site === site && r.time >= `${start} 00:00`), (r) => r.time);
-  const fc = dedupe(fcRecs.map(parseForecast).filter((r) => r && r.area === area && r.publish_time >= `${fcStart} 00:00`),
+  const fc = dedupe(fcRecs.map(parseForecast)
+    .filter((r) => r && r.area === area && isWholeDayForecast(r) && r.publish_time >= `${fcStart} 00:00`),
     (r) => `${r.forecast_date}|${r.publish_time}`);
   const daily = dedupe(dailyRecs.map(parseDailyOfficial).filter((r) => r && r.site === site && r.date >= dailyStart), (r) => r.date);
 
