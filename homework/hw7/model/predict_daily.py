@@ -1,9 +1,13 @@
 """
 每天下午由 GitHub Actions 執行：用 16 時版模型預測「明天」的金門官方日 AQI，上傳到看板。
+有兩個模型：
+  我的模型     只用觀測資料（model_16.joblib）
+  模型＋預報   再加一個特徵 forecast＝今天 16:30 發布、預報明天的環境部 AQI（model_16_fc.joblib）
+               16:30 那版預報還沒抓到時，這次只上傳「我的模型」，18:40 那次會再試。
 
 特徵的算法逐行照抄期中報告 notebook（金門明日 AQI 預測）的 parse_hourly、hourly_feats、build_features，
-只是把「整段歷史」換成「最近幾天」。`--check` 會用 notebook 匯出的特徵（features_reference.csv）
-逐欄比對，確認兩邊算出來的數字一樣。
+只是把「整段歷史」換成「最近幾天」；官方預報的篩選照抄 notebook 第 3 節。`--check` 會用 notebook
+匯出的特徵（features_reference.csv）逐欄比對，確認兩邊算出來的數字一樣。
 
 環境變數：
   MOENV_API_KEY   環境部 API 金鑰
@@ -35,6 +39,7 @@ META = json.loads((HERE / "model_meta.json").read_text(encoding="utf-8"))
 CONFIG = META["config"]          # 與 notebook 相同的設定（測站、截止時間、最少有效小時數）
 CUTOFF = META["cutoff"]          # 16：只用當天 16:00 以前的觀測
 FEATURES = META["features"]      # 模型特徵，順序與訓練時相同
+HYBRID = META.get("hybrid")      # 「模型＋預報」的設定；舊版 model_meta.json 沒有這段時就只跑「我的模型」
 TZ = ZoneInfo("Asia/Taipei")
 
 
@@ -151,6 +156,59 @@ def load_recent(since):
     return h, up, d
 
 
+# ---------- 官方預報（模型＋預報用，照抄 notebook 第 3 節）----------
+
+def load_forecasts(since):
+    """since 當天（含）以後發布的金門空品區預報；since 是 pd.Timestamp（日期）"""
+    after = (since - pd.Timedelta(days=1)).strftime("%Y-%m-%d") + " 23:59"   # GR 是「大於」
+    return fetch("aqf_p_01", f"area,EQ,{CONFIG['site']}|publishtime,GR,{after}", "publishtime desc")
+
+
+def forecast_feature(f, days, issue):
+    """
+    每個 day 取「day 當天 issue 時刻發布、預報 day 隔天」的官方 AQI，回傳以 day 為索引的 Series（沒有就是 NaN）。
+    2026-11-10 起環境部把預報拆成「上午／下午／全日」（timeperiod 欄），目標是官方日 AQI，所以只用「全日」；
+    舊資料沒有 timeperiod（空白），照常使用。
+    """
+    out = pd.Series(np.nan, index=days, dtype=float, name="forecast")
+    if f.empty:
+        return out
+    x = f.copy()
+    x["pub"] = pd.to_datetime(x["publishtime"], format="mixed")
+    x["target"] = pd.to_datetime(x["forecastdate"], format="mixed")
+    x["aqi"] = pd.to_numeric(x["aqi"], errors="coerce")          # 跟 notebook 相同：區間寫法（51-70）當成缺值
+    tp = x["timeperiod"].fillna("").astype(str).str.strip() if "timeperiod" in x.columns else pd.Series("", index=x.index)
+    x = x[tp.isin(["", "nan", "None", "全日"])]
+    lead_days = (x["target"] - x["pub"].dt.normalize()).dt.days
+    x = x[(lead_days == 1) & (x["pub"].dt.strftime("%H:%M") == issue)]
+    # 跟 notebook 的 assert 相同：同一次發布對同一天只能有一個值，否則寧可不預測
+    n = x.groupby("target")["aqi"].nunique()
+    if (n > 1).any():
+        raise RuntimeError(f"同一次發布對同一天有兩個不同預報值：{[str(t.date()) for t in n[n > 1].index]}")
+    v = x.dropna(subset=["aqi"]).drop_duplicates("target").set_index("target")["aqi"]
+    v.index = v.index - pd.Timedelta(days=1)                      # 改成以「發布當天」（今天）為索引
+    return v.reindex(days).astype(float).rename("forecast")
+
+
+def predict_hybrid(row, today):
+    """用「模型＋預報」預測明天；今天 16:30 的預報還沒有或抓不到時回傳 None，不影響「我的模型」"""
+    name, issue = HYBRID["model_name"], HYBRID["forecast_issue"]
+    try:
+        fc = forecast_feature(load_forecasts(today), pd.DatetimeIndex([today]), issue).iloc[0]
+    except Exception as e:
+        print(f"{name}：讀取官方預報失敗（{e}），這次不預測", file=sys.stderr)
+        return None
+    if pd.isna(fc):
+        print(f"{name}：還沒有今天 {issue} 發布的明日預報（全日），這次不預測，之後重跑會補上")
+        return None
+    X = row[FEATURES].copy()
+    X["forecast"] = fc
+    model = joblib.load(HERE / HYBRID["model_file"])
+    pred = float(model.predict(X[HYBRID["features"]])[0])
+    print(f"今天 {issue} 官方預報明天 AQI：{fc:.0f}；{name}（{HYBRID['learner']}）預測：{pred:.1f}")
+    return pred
+
+
 # ---------- 主程式 ----------
 
 def check():
@@ -158,14 +216,18 @@ def check():
     ref = pd.read_csv(HERE / "features_reference.csv", index_col=0, parse_dates=True)
     h, up, d = load_recent(ref.index.min() - pd.Timedelta(days=4))   # d3_mean 要往前 3 天的官方日 AQI
     mine = build_features(h, up, d, ref.index)
-    diff = (mine[FEATURES] - ref[FEATURES]).abs()
-    both_nan = mine[FEATURES].isna() & ref[FEATURES].isna()
+    cols = list(FEATURES)
+    if HYBRID and "forecast" in ref.columns:   # 也比對「模型＋預報」多出來的 forecast 特徵
+        mine["forecast"] = forecast_feature(load_forecasts(ref.index.min()), ref.index, HYBRID["forecast_issue"])
+        cols.append("forecast")
+    diff = (mine[cols] - ref[cols]).abs()
+    both_nan = mine[cols].isna() & ref[cols].isna()
     bad = (diff > 1e-6) & ~both_nan
-    one_nan = mine[FEATURES].isna() ^ ref[FEATURES].isna()
-    print(f"比對 {len(ref)} 天 × {len(FEATURES)} 個特徵（{ref.index.min().date()}～{ref.index.max().date()}）")
+    one_nan = mine[cols].isna() ^ ref[cols].isna()
+    print(f"比對 {len(ref)} 天 × {len(cols)} 個特徵（{ref.index.min().date()}～{ref.index.max().date()}）")
     if bad.values.any() or one_nan.values.any():
         print("不一致的欄位：")
-        for c in FEATURES:
+        for c in cols:
             if bad[c].any() or one_nan[c].any():
                 print(f"  {c}：{int(bad[c].sum() + one_nan[c].sum())} 天")
         sys.exit(1)
@@ -203,13 +265,20 @@ def predict(dry_run, date=None):
     print("特徵：", json.dumps({k: (None if pd.isna(v) else round(float(v), 3)) for k, v in row[FEATURES].iloc[0].items()},
                               ensure_ascii=False))
     print(f"預測 {target} 的官方日 AQI：{pred:.1f}（{META['learner']}，{META['model_name']}）")
+    uploads = [{"date": target, "aqi": round(pred, 1), "model": META["model_name"]}]
+
+    # 模型＋預報：有今天 16:30 的預報才預測，沒有就只上傳「我的模型」
+    if HYBRID:
+        pred_fc = predict_hybrid(row, today)
+        if pred_fc is not None:
+            uploads.append({"date": target, "aqi": round(pred_fc, 1), "model": HYBRID["model_name"]})
 
     if dry_run:
         return
     site, token = os.environ["AQI_SITE"].rstrip("/"), os.environ["AQI_API_TOKEN"]
-    r = requests.post(f"{site}/api/predictions", timeout=30,
+    r = requests.post(f"{site}/api/predictions", timeout=30,     # 一次上傳全部（API 接受陣列）
                       headers={"Authorization": f"Bearer {token}", "User-Agent": "kinmen-aqi-predictor"},
-                      json={"date": target, "aqi": round(pred, 1), "model": META["model_name"]})
+                      json=uploads)
     if not r.ok:
         sys.exit(f"上傳失敗（HTTP {r.status_code}）：{r.text}")
     print("已上傳：", r.json())
