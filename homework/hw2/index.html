@@ -284,8 +284,17 @@ function doLogin(){
     document.getElementById('captcha').focus();
     return;
   }
-  /* 模擬驗證：guest/123 或任一學號皆可登入 */
-  var name = (acc.toLowerCase() === 'guest') ? '來賓' : '王小明';
+  /* 模擬驗證：來賓必須用 guest/123；學生帳號則任意密碼皆可登入 */
+  var isGuest = (acc.toLowerCase() === 'guest');
+  if (isGuest && pwd !== '123'){
+    showMsg('來賓密碼錯誤，請輸入 123。');
+    newCaptcha();
+    document.getElementById('captcha').value = '';
+    document.getElementById('password').value = '';
+    document.getElementById('password').focus();
+    return;
+  }
+  var name = isGuest ? '來賓' : '王小明';
   try{
     sessionStorage.setItem('nqu_user', JSON.stringify({ id: acc, name: name }));
   }catch(e){}

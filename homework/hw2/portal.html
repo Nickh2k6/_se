@@ -348,16 +348,47 @@ var STUDENT = {
   dept:'資訊工程學系', classNow:'資訊工程學系三年級',
   program:'日間部學士班－資訊工程學系'
 };
+/* 把文字裡的 HTML 特殊符號換掉，避免使用者輸入被當成程式碼執行（防 XSS） */
+function esc(s){
+  return String(s).replace(/[&<>"']/g, function(c){
+    return { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c];
+  });
+}
+
+/* 登入檢查：從 sessionStorage 讀登入時存的使用者，沒有就導回登入頁 */
+var IS_GUEST = false;
 (function(){
-  var acc = new URLSearchParams(location.search).get('u') || '';
-  if (acc.toLowerCase() === 'guest'){
+  var user = null;
+  try{
+    user = JSON.parse(sessionStorage.getItem('nqu_user') || 'null');
+  }catch(e){
+    /* 瀏覽器不允許使用 sessionStorage 時，退回用網址參數 ?u= */
+    var u = new URLSearchParams(location.search).get('u');
+    if (u) user = { id: u };
+  }
+  if (!user || !user.id){
+    document.documentElement.style.display = 'none';   // 先藏起畫面，避免閃一下內容
+    location.replace('index.html');
+    return;
+  }
+  if (String(user.id).toLowerCase() === 'guest'){
+    IS_GUEST = true;
     STUDENT = {id:'guest',name:'來賓',idno:'-',dept:'-',classNow:'來賓帳號',program:'－'};
-  } else if (acc) { STUDENT.id = acc; }
+  } else {
+    STUDENT.id = String(user.id);
+  }
+  /* 這裡用 textContent，本來就不會執行 HTML，不需要 esc() */
   document.getElementById('uName').textContent = STUDENT.name;
   document.getElementById('uMeta').textContent = STUDENT.classNow + '　' + STUDENT.id;
   document.getElementById('uAvatar').textContent = STUDENT.name.charAt(0);
 })();
-function logout(){ if (confirm('確定要登出系統嗎？')) location.href = 'index.html'; }
+
+/* 登出：清掉登入資料再回登入頁 */
+function logout(){
+  if (!confirm('確定要登出系統嗎？')) return;
+  try{ sessionStorage.removeItem('nqu_user'); }catch(e){}
+  location.replace('index.html');
+}
 
 /* =====================================================================
    1. 選單結構
@@ -616,8 +647,19 @@ function today(){
   return d.getFullYear() + '/' + (d.getMonth()+1) + '/' + d.getDate() + ' ' + z(d.getHours()) + ':' + z(d.getMinutes());
 }
 
+/* 來賓不能看的頁面（含個人成績、選課、基本資料等） */
+var PERSONAL_VIEWS = ['termGrade','warning','transcript','enrolled','micro','cross',
+                      'absence','grant','military','profile'];
+
 function render(view, label, crumb){
   var h = '';
+  /* 來賓點到個人資料頁面時，改顯示無權限 */
+  if (IS_GUEST && PERSONAL_VIEWS.indexOf(view) !== -1){
+    main.innerHTML = head(label, crumb) +
+      stateBlock('closed','🔒','來賓帳號無查詢權限',
+        '「' + label + '」涉及學生個人資料，請使用學生帳號登入後查詢。');
+    return;
+  }
   switch(view){
 
     /* ---------- 選課作業：一律非開放時間 ---------- */
@@ -779,7 +821,7 @@ function showTermGrade(){
     '<div class="card">' +
       '<div class="doc-head"><div class="univ">國立金門大學</div>' +
         '<div class="kind">學生個人成績明細表</div><div class="term">' + d.term + '</div></div>' +
-      '<div class="doc-meta"><div>班級：' + d.cls + '　　學號：' + STUDENT.id + '　　姓名：' + STUDENT.name + '</div>' +
+      '<div class="doc-meta"><div>班級：' + d.cls + '　　學號：' + esc(STUDENT.id) + '　　姓名：' + esc(STUDENT.name) + '</div>' +
         '<div class="rose">[ * ] 表示未傳送成績。</div></div>' +
       '<div class="table-wrap"><table class="t">' +
         '<thead><tr><th style="width:56px">項次</th><th>科目名稱</th><th style="width:86px">學分數</th>' +
@@ -805,19 +847,20 @@ function showTermGrade(){
 function transcriptHTML(){
   var h = '<div class="card">' +
     '<div class="doc-head"><div class="univ">國立金門大學</div>' +
-      '<div class="kind">學生歷年成績表</div><div class="term">' + STUDENT.program + '</div></div>' +
-    '<div class="doc-meta"><div>學號：' + STUDENT.id + '　　姓名：' + STUDENT.name + '　　身分證字號：' + STUDENT.idno + '</div>' +
+      '<div class="kind">學生歷年成績表</div><div class="term">' + esc(STUDENT.program) + '</div></div>' +
+    '<div class="doc-meta"><div>學號：' + esc(STUDENT.id) + '　　姓名：' + esc(STUDENT.name) + '　　身分證字號：' + esc(STUDENT.idno) + '</div>' +
       '<div class="rose">本資料僅供學生確認修習課程之用</div></div><div class="card-body">';
 
-  /* 僅顯示第三學年(115) */
-  TRANSCRIPT.filter(function(y){ return y.year.indexOf('115') !== -1; }).forEach(function(y){
+  /* 依序顯示每一學年（第一～第三學年） */
+  TRANSCRIPT.forEach(function(y){
     h += '<h4 style="margin:16px 0 8px;font-size:15px;color:var(--blue-900)">' + y.year +
          ' <span style="font-weight:400;color:var(--slate-500);font-size:13px">（' + y.range + '）</span></h4>' +
          '<div class="table-wrap"><table class="t" style="min-width:600px">' +
-         '<thead><tr><th style="width:58px">類別</th><th>科目名稱</th><th style="width:70px">學分</th><th style="width:78px">成績</th>' +
-         '<th style="width:58px">類別</th><th>科目名稱</th><th style="width:70px">學分</th><th style="width:78px">成績</th></tr></thead>' +
+         /* 表頭只能有一個 thead：第一列是學期，第二列是欄位名稱 */
          '<thead><tr><th colspan="4" style="background:var(--blue-50);color:var(--blue-800)">第一學期</th>' +
-         '<th colspan="4" style="background:var(--blue-50);color:var(--blue-800)">第二學期</th></tr></thead><tbody>';
+         '<th colspan="4" style="background:var(--blue-50);color:var(--blue-800)">第二學期</th></tr>' +
+         '<tr><th style="width:58px">類別</th><th>科目名稱</th><th style="width:70px">學分</th><th style="width:78px">成績</th>' +
+         '<th style="width:58px">類別</th><th>科目名稱</th><th style="width:70px">學分</th><th style="width:78px">成績</th></tr></thead><tbody>';
     var n = Math.max(y.s1.length, y.s2.length, 1);
     for (var i = 0; i < n; i++){
       h += '<tr>' + cellPair(y.s1[i]) + cellPair(y.s2[i]) + '</tr>';
@@ -875,7 +918,7 @@ function enrolledHTML(){
   return '<div class="card">' +
     '<div class="doc-head"><div class="univ">國立金門大學</div>' +
       '<div class="kind">學生個人選課清單</div><div class="term">115學年度第1學期</div></div>' +
-    '<div class="doc-meta"><div>班級：' + STUDENT.classNow + '　　學號：' + STUDENT.id + '　　姓名：' + STUDENT.name + '</div>' +
+    '<div class="doc-meta"><div>班級：' + esc(STUDENT.classNow) + '　　學號：' + esc(STUDENT.id) + '　　姓名：' + esc(STUDENT.name) + '</div>' +
       '<div>列印日期：' + today() + '</div></div>' +
     '<div class="table-wrap"><table class="t" style="min-width:1020px">' +
       '<thead><tr><th>選課代碼</th><th>課目名稱</th><th>班級</th><th>分組</th><th>學分</th><th>時數</th>' +
@@ -950,11 +993,11 @@ function profileHTML(){
     '<span class="tag blue">115學年度第1學期</span></div>' +
     '<div class="table-wrap"><table class="t" style="min-width:520px">' +
     '<tbody>' +
-    '<tr><th style="width:150px">學號</th><td class="l">' + STUDENT.id + '</td></tr>' +
-    '<tr><th>姓名</th><td class="l">' + STUDENT.name + '</td></tr>' +
-    '<tr><th>身分證字號</th><td class="l">' + STUDENT.idno + '</td></tr>' +
-    '<tr><th>學制／系所</th><td class="l">' + STUDENT.program + '</td></tr>' +
-    '<tr><th>班級</th><td class="l">' + STUDENT.classNow + '</td></tr>' +
+    '<tr><th style="width:150px">學號</th><td class="l">' + esc(STUDENT.id) + '</td></tr>' +
+    '<tr><th>姓名</th><td class="l">' + esc(STUDENT.name) + '</td></tr>' +
+    '<tr><th>身分證字號</th><td class="l">' + esc(STUDENT.idno) + '</td></tr>' +
+    '<tr><th>學制／系所</th><td class="l">' + esc(STUDENT.program) + '</td></tr>' +
+    '<tr><th>班級</th><td class="l">' + esc(STUDENT.classNow) + '</td></tr>' +
     '<tr><th>在學狀態</th><td class="l"><span class="tag green">在學</span></td></tr>' +
     '</tbody></table></div>' +
     '<div class="card-body"><div class="note-small">※ 如需修改聯絡方式、通訊地址或緊急聯絡人，請至學務處生活輔導組辦理。</div></div></div>';
