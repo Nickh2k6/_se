@@ -72,6 +72,21 @@ test('明天的預報還沒發布時 forecast 是 null', async () => {
   assert.deepEqual(t.predictions, []);
 });
 
+test('看板沒給 forecasts、predictions 時 tomorrow 不會壞掉', async () => {
+  // 一個欄位缺少、一個是 null，兩種都要當作空陣列
+  const { forecasts, ...rest } = LATEST;
+  const { fn } = fakeFetch({ ...rest, predictions: null });
+  const t = await new KinmenAqi({ fetch: fn }).tomorrow();
+  assert.equal(t.date, '2026-11-14');
+  assert.equal(t.forecast, null);
+  assert.deepEqual(t.predictions, []);
+});
+
+test('看板沒給 today 時 tomorrow 丟出看得懂的錯誤', async () => {
+  const { fn } = fakeFetch({ ...LATEST, today: undefined });
+  await assert.rejects(new KinmenAqi({ fetch: fn }).tomorrow(), (err) => err instanceof KinmenAqiError && /today/.test(err.message));
+});
+
 test('hourly 帶上 hours 並回傳 rows', async () => {
   const rows = [{ time: '2026-11-13 08:00', aqi: 72 }];
   const { fn, calls } = fakeFetch({ site: '金門', hours: 1, rows });
@@ -91,8 +106,8 @@ test('超出範圍的參數不送出請求', async () => {
   await assert.rejects(c.hourly({ hours: 0 }), RangeError);
   await assert.rejects(c.hourly({ hours: 1441 }), RangeError);
   await assert.rejects(c.hourly({ hours: '24' }), RangeError);
-  assert.throws(() => c.daily({ days: 1 }), RangeError);
-  assert.throws(() => c.daily({ basis: 'median' }), RangeError);
+  await assert.rejects(c.daily({ days: 1 }), RangeError);
+  await assert.rejects(c.daily({ basis: 'median' }), RangeError);
   assert.equal(calls.length, 0);
 });
 
@@ -134,7 +149,7 @@ test('讀取的請求不帶 token', async () => {
 
 test('沒有 token 或筆數不對時不送出上傳', async () => {
   const { fn, calls } = fakeFetch({ saved: 0 });
-  assert.throws(() => new KinmenAqi({ fetch: fn }).uploadPredictions({ date: '2026-11-14', aqi: 60 }), KinmenAqiError);
-  assert.throws(() => new KinmenAqi({ fetch: fn, token: 'x' }).uploadPredictions([]), RangeError);
+  await assert.rejects(new KinmenAqi({ fetch: fn }).uploadPredictions({ date: '2026-11-14', aqi: 60 }), KinmenAqiError);
+  await assert.rejects(new KinmenAqi({ fetch: fn, token: 'x' }).uploadPredictions([]), RangeError);
   assert.equal(calls.length, 0);
 });

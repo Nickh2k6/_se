@@ -89,7 +89,7 @@ aqiLevel(105); // { max: 150, name: '對敏感族群不健康', key: 'usg' }
 | `latest()`、`status()` | `/api/latest`、`/api/status` 的原始內容 |
 | `uploadPredictions(預測或陣列)` | 上傳 `{ date, aqi, model }`，一次最多 400 筆，回傳 `{ saved }` |
 
-參數超出範圍時直接丟 `RangeError`，不會送出請求。API 回傳錯誤、回傳的不是 JSON 或連不上時丟 `KinmenAqiError`，`status` 是 HTTP 狀態碼（連不上時為 `null`）。
+所有方法都回傳 Promise，錯誤一律以失敗的 Promise 回報（用 `await` 加 `try/catch` 或 `.catch()` 都接得到）。參數超出範圍時丟 `RangeError`，不會送出請求。API 回傳錯誤、回傳的不是 JSON 或連不上時丟 `KinmenAqiError`，`status` 是 HTTP 狀態碼（連不上時為 `null`）。
 
 上傳預測要用看板的 `API_TOKEN`。token 請放在環境變數，不要寫進程式：
 

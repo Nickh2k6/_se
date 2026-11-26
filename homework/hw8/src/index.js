@@ -72,7 +72,8 @@ export class KinmenAqi {
    * @param {'daily'|'max'|'mean'} [options.basis] 實測值用官方日 AQI、每小時最大或每小時平均
    * @param {number} [options.bigChange] 「大幅變動日」的門檻，1～200
    */
-  daily({ days = 30, basis = 'daily', bigChange = 30 } = {}) {
+  // 用 async：參數錯誤時回傳失敗的 Promise，和 hourly() 一樣用 await / .catch() 都接得到
+  async daily({ days = 30, basis = 'daily', bigChange = 30 } = {}) {
     checkInt('days', days, 2, 1000);
     checkInt('bigChange', bigChange, 1, 200);
     if (!BASES.includes(basis)) throw new RangeError(`basis 要是 ${BASES.join('、')} 其中之一：${basis}`);
@@ -94,13 +95,16 @@ export class KinmenAqi {
   /** 明天的環境部預報與模型預測；預報還沒發布時 forecast 為 null */
   async tomorrow() {
     const { area, today, forecasts, predictions } = await this.latest();
+    // 沒有今天日期就算不出明天，直接說清楚，不要讓 addDays 丟出看不懂的 Invalid time value
+    if (typeof today !== 'string') throw new KinmenAqiError('/api/latest 沒有回傳今天日期（today）');
     const date = addDays(today, 1);
-    const f = forecasts.find((x) => x.forecast_date === date);
+    // 看板少給或給 null 時當作空陣列：forecast 變 null、predictions 變 []
+    const f = (forecasts ?? []).find((x) => x.forecast_date === date);
     return {
       area,
       date,
       forecast: f ? { aqi: f.aqi, level: aqiLevel(f.aqi), pollutant: f.major_pollutant, published: f.publish_time } : null,
-      predictions: predictions
+      predictions: (predictions ?? [])
         .filter((p) => p.forecast_date === date)
         .map((p) => ({ model: p.model, aqi: p.aqi, level: aqiLevel(p.aqi) })),
     };
@@ -111,7 +115,7 @@ export class KinmenAqi {
    * @param {{date: string, aqi: number, model?: string} | Array<{date: string, aqi: number, model?: string}>} predictions
    * @returns {Promise<{saved: number}>}
    */
-  uploadPredictions(predictions) {
+  async uploadPredictions(predictions) {
     if (!this.token) throw new KinmenAqiError('上傳預測需要 token（建立 KinmenAqi 時傳入 options.token）');
     const list = Array.isArray(predictions) ? predictions : [predictions];
     if (list.length === 0 || list.length > 400) throw new RangeError('一次 1～400 筆');
