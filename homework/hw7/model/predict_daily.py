@@ -200,13 +200,13 @@ def predict_hybrid(row, today):
         print(f"{name}：讀取官方預報失敗（{e}），這次不預測", file=sys.stderr)
         return None
     if pd.isna(fc):
-        print(f"{name}：還沒有今天 {issue} 發布的明日預報（全日），這次不預測，之後重跑會補上")
+        print(f"{name}：還沒有 {today.date()} {issue} 發布的隔天預報（全日），這次不預測，之後重跑會補上")
         return None
     X = row[FEATURES].copy()
     X["forecast"] = fc
     model = joblib.load(HERE / HYBRID["model_file"])
     pred = float(model.predict(X[HYBRID["features"]])[0])
-    print(f"今天 {issue} 官方預報明天 AQI：{fc:.0f}；{name}（{HYBRID['learner']}）預測：{pred:.1f}")
+    print(f"{today.date()} {issue} 官方預報隔天 AQI：{fc:.0f}；{name}（{HYBRID['learner']}）預測：{pred:.1f}")
     return pred
 
 
