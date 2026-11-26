@@ -46,6 +46,9 @@ AIRLINES = {"AE": "華信航空", "B7": "立榮航空", "DA": "德安航空", "C
 # 各資料快取秒數
 TTL = {"dep": 120, "arr": 120, "obs": 600, "fog": 600, "fcst": 1800, "bus_eta": 60,
        "bus_routes": 86400, "ship_routes": 86400}
+# API 失敗時，舊資料最多還能用多久（秒）。超過就當成抓不到，免得拿好幾天前的天氣判斷今天
+MAX_STALE = {"dep": 1800, "arr": 1800, "kma_dep": 1800, "kma_arr": 1800,
+             "obs": 3600, "fog": 3600, "fcst": 6 * 3600, "bus_eta": 300, "ship_routes": 7 * 86400}
 
 
 # ---------- 設定 ----------
@@ -78,7 +81,10 @@ _cache_lock = threading.Lock()
 
 
 def cached(key, ttl, fetch):
-    """回傳 (data, meta)。過期就重抓；重抓失敗則回傳舊資料並標示 stale。"""
+    """回傳 (data, meta)。過期就重抓；重抓失敗則回傳舊資料並標示 stale。
+
+    舊資料超過 MAX_STALE 的期限就不再使用，直接把錯誤丟出去。
+    """
     with _cache_lock:
         entry = _cache.get(key)
         if entry is None:
@@ -91,7 +97,8 @@ def cached(key, ttl, fetch):
     try:
         data = fetch()
     except Exception as e:  # 網路錯誤、限流、金鑰錯誤都走這裡
-        if entry:
+        # 舊資料還在期限內才拿來用；太舊的寧可顯示「抓不到」
+        if entry and time.time() - entry["ts"] < MAX_STALE.get(key, 3600):
             return entry["data"], {"updated": entry["ts"], "stale": True, "error": str(e)}
         raise
     entry = {"ts": time.time(), "data": data}
@@ -254,20 +261,36 @@ def normalize_kma(rows, kind, now):
 
 
 def get_flights(kind, now, errors):
-    """先用金門航空站官網；抓不到或格式改變時改用 TDX。回傳 (航班, meta)。"""
+    """先用金門航空站官網；抓不到、格式改變或只剩舊資料時改用 TDX。回傳 (航班, meta)。
+
+    兩邊都只剩舊資料（或 TDX 也失敗）時，退回去用官網的舊資料。
+    """
+    kma = None  # 官網的舊資料，TDX 也不能用時才拿出來
     try:
         rows, meta = cached("kma_" + kind, TTL[kind], lambda: kma_fetch(kind))
         if not rows:
             raise ValueError("官網沒有航班資料")
-        return normalize_kma(rows, kind, now), {**meta, "source": "金門航空站"}
+        kma = normalize_kma(rows, kind, now), {**meta, "source": "金門航空站"}
+        if not meta["stale"]:
+            return kma  # 官網的新資料，直接用
+        kma_error = meta["error"]
     except Exception as e:
         kma_error = str(e)
+
+    # 官網不能用（或只剩舊資料）→ 改試 TDX
     path = "/v2/Air/FIDS/Airport/" + ("Departure" if kind == "dep" else "Arrival") + "/KNH"
     name = "departures" if kind == "dep" else "arrivals"
-    rows, meta = safe(name, lambda: cached(kind, TTL[kind], lambda: tdx(path)), errors)
-    if meta is None:
+    try:
+        rows, meta = cached(kind, TTL[kind], lambda: tdx(path))
+        flights = normalize_flights(rows or [], kind)
+    except Exception as e:
+        if kma:
+            return kma
+        errors[name] = str(e)
         return [], None
-    return normalize_flights(rows or [], kind), {**meta, "source": "TDX", "fallback_reason": kma_error}
+    if meta["stale"] and kma:  # 兩邊都是舊資料，以官網為主
+        return kma
+    return flights, {**meta, "source": "TDX", "fallback_reason": kma_error}
 
 
 def parse_visibility(desc):
@@ -344,6 +367,7 @@ def analyze(dep, arr, obs, alerts, now):
     """停飛風險燈號。只依官方資料觸發：濃霧特報、能見度、航班取消。
 
     起霧推估、延誤不列入警告（推估只畫在時間軸上參考，延誤只顯示在統計）。
+    三項官方資料只要有一項抓不到又沒有其他警訊，就給灰燈「無法判斷」，不給綠燈。
     """
     today = now.strftime("%Y-%m-%d")
     todays = [f for f in dep if f["date"] == today]
@@ -352,6 +376,15 @@ def analyze(dep, arr, obs, alerts, now):
     arr_cancelled = sum(1 for f in arr if f["date"] == today and f["status"] == "cancelled")
     vis = obs.get("visibility_km") if obs else None
     low_vis, poor_vis = vis is not None and vis < 1.6, vis is not None and vis < 5
+
+    # 三項官方資料有沒有確實拿到；只要有一項抓不到，就不能說「正常」
+    unknown = []
+    if alerts is None:
+        unknown.append("無法取得濃霧特報，無法確認")
+    if vis is None:
+        unknown.append("無法取得能見度，無法確認")
+    if not todays:
+        unknown.append("無法取得今天的航班資料，無法確認")
 
     reasons = []
     if alerts:
@@ -369,11 +402,15 @@ def analyze(dep, arr, obs, alerts, now):
         level, title = "orange", "可能停飛"
     elif poor_vis:
         level, title = "yellow", "請留意"
+    elif unknown:  # 沒有警訊，但資料不齊，不能當成正常
+        level, title = "gray", "無法判斷"
     else:
         level, title = "green", "正常"
 
     advice = {
         "green": ["目前沒有濃霧特報、能見度良好、也沒有航班取消，照原計畫出發即可。"],
+        "gray": ["部分官方資料暫時抓不到，無法判斷今天是否會停飛。",
+                 "出發前請直接到航空公司或金門航空站官網確認航班狀態。"],
         "yellow": ["能見度偏低，出發前再確認一次航班狀態。"],
         "orange": ["盡快聯繫航空公司確認，或先登記後面航班的候補。",
                    "若有台胞證，可評估小三通到廈門再飛臺灣的替代路線。",
@@ -382,10 +419,12 @@ def analyze(dep, arr, obs, alerts, now):
                 "趕時間的話可考慮小三通（水頭碼頭 → 廈門五通）再從廈門轉機飛臺灣，需台胞證。",
                 "下方有前往水頭碼頭、機場的公車資訊。"],
     }[level]
-    if not reasons:  # 沒抓到的資料要說「無法確認」，不能當成正常
+    if not reasons:  # 沒有任何警訊：逐項說明確認了什麼、哪些沒抓到（沒抓到不能當成正常）
         reasons = ["沒有濃霧特報" if alerts is not None else "無法取得濃霧特報，無法確認",
                    "能見度正常" if vis is not None else "無法取得能見度，無法確認",
-                   "沒有航班取消" if dep else "無法取得航班資料，無法確認"]
+                   "今天沒有航班取消" if todays else "無法取得今天的航班資料，無法確認"]
+    else:  # 有警訊時，也讓使用者知道哪些資料沒抓到
+        reasons += unknown
     return {"level": level, "title": title, "reasons": reasons,
             "advice": advice,
             "stats": {"departures": len(todays), "cancelled": cancelled, "delayed": count("delayed"),
@@ -402,6 +441,21 @@ def safe(name, fn, errors):
         return None, None
 
 
+def parse_or_none(name, fn, data, meta, errors):
+    """把 API 原始資料整理成前端要的格式。
+
+    格式不如預期（少欄位、空陣列）時，只讓這一項變成「抓不到」，不讓整個 /api/status 壞掉。
+    """
+    if not data:
+        return None
+    try:
+        return fn(data)
+    except Exception as e:
+        errors[name] = f"資料格式無法解析（{e!r}）"
+        meta[name] = None
+        return None
+
+
 def api_status():
     now = datetime.now(TW)
 
@@ -415,9 +469,10 @@ def api_status():
     fc, meta["forecast"] = safe("forecast", lambda: cached(
         "fcst", TTL["fcst"], lambda: cwa("F-D0047-085", LocationName=AIRPORT_TOWN)), errors)
 
-    obs = summarize_obs(obs) if obs else None
-    alerts = kinmen_fog_alerts(fog, now) if fog else None  # None＝抓不到，[]＝確定沒有
-    fcst = summarize_forecast(fc, now) if fc else None
+    # 整理資料；alerts 是 None＝抓不到，[]＝確定沒有
+    obs = parse_or_none("obs", summarize_obs, obs, meta, errors)
+    alerts = parse_or_none("fog_alerts", lambda r: kinmen_fog_alerts(r, now), fog, meta, errors)
+    fcst = parse_or_none("forecast", lambda r: summarize_forecast(r, now), fc, meta, errors)
     for k in list(errors):
         if meta.get(k) is None:
             meta.pop(k, None)

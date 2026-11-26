@@ -29,6 +29,7 @@
   #risk { color: #fff; display: flex; gap: 20px; align-items: flex-start; flex-wrap: wrap; }
   #risk.green { background: var(--green); } #risk.yellow { background: var(--yellow); }
   #risk.orange { background: var(--orange); } #risk.red { background: var(--red); }
+  #risk.gray { background: #6b7684; } /* 資料不齊，無法判斷 */
   #risk .light { font-size: 46px; font-weight: 800; min-width: 170px; line-height: 1.1; }
   #risk .light small { display: block; font-size: 14px; font-weight: 400; opacity: .9; }
   #risk ul { margin: 4px 0; padding-left: 20px; }
@@ -179,7 +180,7 @@ function render() {
   $("updated").textContent = "更新時間 " + new Date(state.now).toLocaleTimeString("zh-TW", { hour12: false });
   const names = { departures: "航班", arrivals: "抵達航班", obs: "天氣觀測", fog_alerts: "濃霧特報", forecast: "預報" };
   const errs = Object.entries(state.errors || {}).map(([k, v]) => `${names[k] || k}：${v}`);
-  showBanner(errs.length ? "⚠️ 部分資料暫時無法更新，畫面顯示的是最後一次取得的資料。（" + errs.join("；") + "）" : "");
+  showBanner(errs.length ? "⚠️ 部分資料暫時無法更新，畫面上可能是稍早的資料，太舊的資料則不顯示。（" + errs.join("；") + "）" : "");
 
   $("risk").className = "card " + a.level;
   $("risk").innerHTML = `
@@ -216,8 +217,8 @@ function renderWeather() {
     h += `<p class="muted">暫無觀測資料</p>`;
   }
   // 濃霧特報：有抓到才警告；確定沒有就明說沒有；抓不到則說明無法確認（不能當成沒有）
-  const fogMeta = (state.meta || {}).fog_alerts;
-  if (!fogMeta) {
+  // fog_alerts 是 null＝抓不到或格式無法解析，[]＝確定沒有
+  if (state.fog_alerts == null) {
     h += `<div class="alert info">❔ 無法取得氣象署濃霧特報，目前無法確認是否有特報。</div>`;
   } else if (state.fog_alerts && state.fog_alerts.length) {
     for (const al of state.fog_alerts) {
